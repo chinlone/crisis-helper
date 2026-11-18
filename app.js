@@ -19,13 +19,19 @@ function init() {
       <div class="scene-txt"><h3>${s.name}</h3><p>${s.desc}</p></div>
       <span class="scene-arrow">›</span>
     </div>`).join('');
+  const hasContact = !/^__/.test(APP_META.author.phone) && !!APP_META.author.phone;
+  const footContact = hasContact
+    ? `获取最新版本 / 反馈建议：<a href="tel:${APP_META.author.phone}">${APP_META.author.phone}</a>（微信同号）`
+    : `获取最新版本 / 反馈建议：见 GitHub 仓库`;
   $('homeFoot').innerHTML = `
     <button class="about-entry" onclick="showPage('about')">ℹ️ 关于本工具 · PFA 说明 · 版本与联系<span class="ae-arrow">›</span></button>
-    <div class="foot-author">制作者：${APP_META.author.name} · 获取最新版本 / 反馈建议：<a href="tel:${APP_META.author.phone}">${APP_META.author.phone}</a>（微信同号）</div>
+    <div class="foot-author">制作者：${APP_META.author.name} · ${footContact}</div>
     <div class="foot-ver">${APP_META.version} · 更新于 ${APP_META.date}</div>
     <div style="margin-top:10px">${DISCLAIMER}</div>`;
   $('resultDisclaimer').textContent = DISCLAIMER;
-  $('resultMeta').textContent = `安心护航 ${APP_META.version} · 制作者 ${APP_META.author.name} ${APP_META.author.phone}（微信同号） · 更新于 ${APP_META.date}`;
+  $('resultMeta').textContent = hasContact
+    ? `安心护航 ${APP_META.version} · 制作者 ${APP_META.author.name} ${APP_META.author.phone}（微信同号） · 更新于 ${APP_META.date}`
+    : `安心护航 ${APP_META.version} · 制作者 ${APP_META.author.name} · 更新于 ${APP_META.date}`;
   renderAbout();
   // 填充省份下拉
   const provs = Object.keys(PROVINCES);
@@ -59,7 +65,8 @@ function renderAbout() {
       <div class="ver-chip">更新日期<b>${m.date}</b></div>
     </div>`;
 
-  $('aboutContact').innerHTML = `
+  const hasContact = !/^__/.test(m.author.phone) && !!m.author.phone;
+  $('aboutContact').innerHTML = hasContact ? `
     <div class="cc-h">📱 联系制作者 ${m.author.name} · 获取最新版本</div>
     <div class="cc-sub">工具通过微信传播，若你手上是旧版本，或有问题与建议，欢迎联系制作者 ${m.author.name}。</div>
     <div class="contact-row">
@@ -71,6 +78,13 @@ function renderAbout() {
       <div class="cr-ico">💬</div>
       <div class="cr-tx"><div class="lb">微信号（点按复制）</div><div class="val">${m.author.wechat}</div></div>
       <button class="cr-btn alt" onclick="copyText('${m.author.wechat}')">复制</button>
+    </div>` : `
+    <div class="cc-h">📱 获取最新版本 · 反馈建议</div>
+    <div class="cc-sub">本版本未内置制作者联系方式。若你手上是旧版本，或有问题与建议，可到项目的 GitHub 仓库查看更新、留言反馈。</div>
+    <div class="contact-row">
+      <div class="cr-ico">💻</div>
+      <div class="cr-tx"><div class="lb">项目仓库（GitHub）</div><div class="val" style="word-break:break-all;font-size:12px">github.com/chinlone/crisis-helper</div></div>
+      <button class="cr-btn alt" onclick="copyText('https://github.com/chinlone/crisis-helper')">复制</button>
     </div>`;
 
   const P = PFA_MAP;
