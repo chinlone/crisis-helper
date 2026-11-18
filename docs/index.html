@@ -1,0 +1,2062 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0f766e">
+<title>安心护航 · 心理危机应急辅助系统</title>
+<!-- 视口自适应（能力检测，不猜浏览器）：
+     本地文件 / 内置浏览器有时会无视 viewport，按 ~980px 排版再缩到屏幕，字变小。
+     这里不按浏览器名单分支，而是两步：
+       ① 先把 viewport 修正为设备宽度——多数内核即时生效，从源头解决，完全无需缩放；
+       ② 仅当修正后仍失效，才在 app.js 里对正文容器 #app 做兜底缩放。
+     关键：缩放只作用于正文 #app，悬浮按钮/弹层/toast 都在 #app 外，不受影响，
+     永远是原生尺寸与真实视口坐标，因此不需要任何反向补偿，也不会有浏览器差异。 -->
+<script>
+window.__vp = { zoom:1, devW:0, layoutVW:0 };
+(function(){
+  var done = false;
+  function devWidth(){
+    try{
+      var dpr = window.devicePixelRatio || 1;
+      var sw = (window.screen && window.screen.width) || 0;
+      var w = (sw > 800 && dpr > 1) ? Math.round(sw/dpr) : sw;
+      return (w >= 280 && w <= 900) ? w : 0; // 桌面大屏直接排除
+    }catch(e){ return 0; }
+  }
+  function isMobile(){
+    try{
+      if ((navigator.maxTouchPoints||0) > 0) return true;
+      return /Android|iPhone|iPod|iPad|Mobile|MicroMessenger|MQQBrowser|EdgA/i.test(navigator.userAgent||'');
+    }catch(e){ return false; }
+  }
+  function vwNow(){ return window.innerWidth || (document.documentElement && document.documentElement.clientWidth) || 0; }
+  function setMeta(w){
+    var m = document.querySelector('meta[name="viewport"]');
+    if (m) m.setAttribute('content','width='+w+',initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover');
+  }
+  function notify(){ try{ window.dispatchEvent(new Event('vpchange')); }catch(e){} }
+  function nextFrame(fn){
+    if (window.requestAnimationFrame) requestAnimationFrame(function(){ requestAnimationFrame(fn); });
+    else setTimeout(fn, 32);
+  }
+  function run(){
+    if (done) return;
+    // 只有触控移动设备才可能出现「视口失效」；桌面(含窗口缩放/多屏)一律走原生布局，
+    // 避免桌面 screen.width 与视口不一致时被误判。这是设备能力判断，不针对具体浏览器。
+    if (!isMobile()){ window.__vp.zoom = 1; done = true; return; }
+    var devW = devWidth(), vw = vwNow();
+    window.__vp.layoutVW = vw;
+    if (!devW || !vw){ done = true; return; }
+    var broken = vw > devW*1.25 || (vw >= 900 && vw <= 1100 && devW < 700);
+    if (!broken){ window.__vp.zoom = 1; done = true; return; } // 视口正常：原生路径，零干预
+    // 第一步：源头修复，把 viewport 钉到设备宽度
+    setMeta(devW);
+    nextFrame(function(){
+      var vw2 = vwNow();
+      if (vw2 && vw2 <= devW*1.15){
+        // 修复生效——视口已正常，无需任何缩放
+        window.__vp.zoom = 1; window.__vp.devW = devW; window.__vp.layoutVW = vw2;
+      } else {
+        // 内核不认动态 meta——量出实际失真的视口，记下兜底倍数
+        var z = (vw2 || vw) / devW;
+        if (z > 1.08 && z < 3.2){ window.__vp.zoom = z; window.__vp.devW = devW; window.__vp.layoutVW = devW*z; }
+      }
+      done = true; notify();
+    });
+  }
+  if (document.readyState === 'complete') run();
+  else window.addEventListener('load', run);
+})();
+</script>
+<style>
+  :root{
+    --teal:#0f766e; --teal-d:#115e59; --teal-l:#14b8a6; --teal-ink:#0f766e;
+    --ink:#1f2937; --sub:#6b7280; --line:#e5e7eb; --bg:#f4f7f8; --card:#fff;
+    --red:#d92d20; --orange:#e8590c; --amber:#c79200; --green:#12805c;
+    --shadow:0 4px 20px rgba(15,118,110,.08); --shadow-lg:0 12px 40px rgba(15,118,110,.16);
+    /* 语义色：浅色模式取值 */
+    --line-soft:#eef2f3; --line-strong:#d5dde0;
+    --hair:#f1f3f4; --arrow:#cbd5d8; --muted:#9aa5ab; --muted-2:#7b878d; --muted-3:#aab2b7;
+    --soft-teal:#eefaf7; --soft-teal-2:#f0fdfa; --soft-teal-line:#cdeee6;
+    --soft-red:#fef3f2; --soft-red-2:#fff5f4; --soft-red-line:#fecdca;
+    --soft-orange:#fff4e6; --soft-amber:#fffaeb; --soft-amber-line:#fde68a;
+    --soft-green:#ecfdf5; --soft-blue:#eff6ff; --soft-blue-2:#eef6ff; --blue-line:#dbeafe;
+    --ink-red:#912018; --ink-green:#065f46; --ink-orange:#92400e; --ink-blue:#1e40af; --ink-blue-2:#1e3a8a;
+    --icon-bg:#f1f3f4; --focus-bg:#f8fffd; --spin-bg:#d1fae5;
+    --grad-hot:#fff1f2; --grad-hot-2:#ffe4e6; --grad-blue:#eff6ff;
+    --sheet-bg:#fff; --disabled:#cbd5d8; --mask:rgba(15,31,30,.5);
+  }
+  /* 深色模式：系统偏好自动生效；也可用 data-theme="dark" 手动强制 */
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --teal:#0d9488; --teal-d:#2dd4bf; --teal-l:#14b8a6; --teal-ink:#5eead4;
+      --ink:#e8edf0; --sub:#9aa7ae; --line:#334047; --bg:#0f1518; --card:#1a2429;
+      --red:#dc2626; --orange:#ea580c; --amber:#d97706; --green:#059669;
+      --shadow:0 4px 20px rgba(0,0,0,.3); --shadow-lg:0 12px 40px rgba(0,0,0,.5);
+      --line-soft:#263238; --line-strong:#3a4a52;
+      --hair:#263238; --arrow:#4a5a62; --muted:#77868e; --muted-2:#8b9aa2; --muted-3:#5f6d75;
+      --soft-teal:#12332f; --soft-teal-2:#0f2b27; --soft-teal-line:#1c5149;
+      --soft-red:#3a1d1d; --soft-red-2:#331a1a; --soft-red-line:#6b2b2b;
+      --soft-orange:#332419; --soft-amber:#332a17; --soft-amber-line:#6b5722;
+      --soft-green:#12302a; --soft-blue:#16283a; --soft-blue-2:#16283a; --blue-line:#26405e;
+      --ink-red:#ffb4ab; --ink-green:#6ee7b7; --ink-orange:#fcd34d; --ink-blue:#93c5fd; --ink-blue-2:#bfdbfe;
+      --icon-bg:#26343a; --focus-bg:#12302a; --spin-bg:#1c5149;
+      --grad-hot:#3a1d1d; --grad-hot-2:#331a1a; --grad-blue:#16283a;
+      --sheet-bg:#1a2429; --disabled:#3a4a52; --mask:rgba(0,0,0,.7);
+      color-scheme:dark;
+    }
+  }
+  /* 手动强制深色（覆盖系统偏好） */
+  :root[data-theme="dark"]{
+    --teal:#0d9488; --teal-d:#2dd4bf; --teal-l:#14b8a6; --teal-ink:#5eead4;
+    --ink:#e8edf0; --sub:#9aa7ae; --line:#334047; --bg:#0f1518; --card:#1a2429;
+    --red:#dc2626; --orange:#ea580c; --amber:#d97706; --green:#059669;
+    --shadow:0 4px 20px rgba(0,0,0,.3); --shadow-lg:0 12px 40px rgba(0,0,0,.5);
+    --line-soft:#263238; --line-strong:#3a4a52;
+    --hair:#263238; --arrow:#4a5a62; --muted:#77868e; --muted-2:#8b9aa2; --muted-3:#5f6d75;
+    --soft-teal:#12332f; --soft-teal-2:#0f2b27; --soft-teal-line:#1c5149;
+    --soft-red:#3a1d1d; --soft-red-2:#331a1a; --soft-red-line:#6b2b2b;
+    --soft-orange:#332419; --soft-amber:#332a17; --soft-amber-line:#6b5722;
+    --soft-green:#12302a; --soft-blue:#16283a; --soft-blue-2:#16283a; --blue-line:#26405e;
+    --ink-red:#ffb4ab; --ink-green:#6ee7b7; --ink-orange:#fcd34d; --ink-blue:#93c5fd; --ink-blue-2:#bfdbfe;
+    --icon-bg:#26343a; --focus-bg:#12302a; --spin-bg:#1c5149;
+    --grad-hot:#3a1d1d; --grad-hot-2:#331a1a; --grad-blue:#16283a;
+    --sheet-bg:#1a2429; --disabled:#3a4a52; --mask:rgba(0,0,0,.7);
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;width:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg); color:var(--ink); line-height:1.6;
+    width:100%; max-width:none; margin:0; min-height:100vh; position:relative;
+  }
+  /* 仅在真·桌面(宽屏+鼠标)时限制阅读宽度并居中；手机/平板/内置浏览器一律铺满，
+     从根本上避免 Edge 打开本地文件时因布局视口异常导致的“窄条” */
+  @media(min-width:768px) and (pointer:fine){
+    body{max-width:520px;margin:0 auto}
+  }
+  .app{min-height:100vh;display:flex;flex-direction:column}
+  .page{display:none;animation:fade .35s ease}
+  .page.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  /* ---------- 顶部 ---------- */
+  .hero{padding:26px 20px 22px;color:#fff;
+    background:linear-gradient(135deg,#0f766e,#0d9488 55%,#14b8a6);
+    border-radius:0 0 28px 28px;position:relative;overflow:hidden;box-shadow:var(--shadow-lg)}
+  .hero::after{content:"";position:absolute;right:-40px;top:-50px;width:180px;height:180px;
+    background:radial-gradient(circle,rgba(255,255,255,.18),transparent 70%);border-radius:50%}
+  .hero::before{content:"";position:absolute;left:-30px;bottom:-60px;width:150px;height:150px;
+    background:radial-gradient(circle,rgba(255,255,255,.12),transparent 70%);border-radius:50%}
+  .badge-top{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.2);
+    padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;backdrop-filter:blur(4px);position:relative;z-index:1}
+  .hero-info{position:absolute;right:16px;top:16px;z-index:2;width:31px;height:31px;border-radius:50%;
+    border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.18);color:#fff;font-size:15px;
+    cursor:pointer;backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center}
+  .hero h1{margin:14px 0 4px;font-size:25px;font-weight:800;letter-spacing:.5px;position:relative;z-index:1}
+  .hero p{margin:0;font-size:13px;opacity:.92;position:relative;z-index:1}
+
+  /* ---------- 一键热线条 ---------- */
+  .sos-bar{margin:-18px 16px 0;position:relative;z-index:2;background:var(--card);border-radius:16px;
+    padding:12px 14px;box-shadow:0 8px 24px rgba(0,0,0,.1);display:flex;align-items:center;gap:12px}
+  .sos-btn{flex:0 0 auto;background:linear-gradient(135deg,#fb7185,#e11d48);color:#fff;border:none;
+    border-radius:12px;padding:11px 16px;font-size:15px;font-weight:800;cursor:pointer;
+    box-shadow:0 4px 12px rgba(225,29,72,.3);display:flex;flex-direction:column;align-items:center;line-height:1.2}
+  .sos-btn small{font-size:10px;font-weight:500;opacity:.9;margin-top:2px}
+  .sos-info{font-size:12px;color:var(--sub);line-height:1.5}
+  .sos-info b{color:var(--ink);font-size:13px}
+  .sos-more{margin-left:auto;color:var(--teal);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
+
+  /* ---------- 通用区块 ---------- */
+  .wrap{padding:18px 16px 30px}
+  .sec-title{font-size:15px;font-weight:800;color:var(--ink);margin:22px 2px 12px;display:flex;align-items:center;gap:8px}
+  .sec-title::before{content:"";width:4px;height:16px;background:var(--teal-l);border-radius:3px}
+  .sec-sub{font-size:12px;color:var(--sub);font-weight:400;margin-left:auto}
+
+  /* ---------- 场景卡片 ---------- */
+  .scene-grid{display:grid;grid-template-columns:1fr;gap:12px}
+  .scene-card{background:var(--card);border-radius:18px;padding:16px;display:flex;align-items:center;gap:14px;
+    cursor:pointer;box-shadow:var(--shadow);border:1px solid var(--line-soft);transition:.2s;position:relative;overflow:hidden}
+  .scene-card:active{transform:scale(.98)}
+  .scene-card:hover{box-shadow:var(--shadow-lg);transform:translateY(-2px)}
+  .scene-ico{width:52px;height:52px;border-radius:15px;display:flex;align-items:center;justify-content:center;
+    font-size:26px;flex:0 0 auto;color:#fff}
+  .scene-txt{flex:1;min-width:0}
+  .scene-txt h3{margin:0 0 3px;font-size:16px;font-weight:800}
+  .scene-txt p{margin:0;font-size:12px;color:var(--sub)}
+  .scene-arrow{color:var(--arrow);font-size:20px;flex:0 0 auto}
+
+  /* ---------- 顶部导航 ---------- */
+  .nav{display:flex;align-items:center;gap:10px;padding:14px 16px;background:var(--card);position:sticky;top:0;z-index:10;border-bottom:1px solid var(--line)}
+  .nav-back{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:var(--card);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--ink)}
+  .nav h2{margin:0;font-size:16px;font-weight:800;flex:1}
+  .nav .step{font-size:11px;color:var(--sub);font-weight:600}
+
+  /* ---------- 情况勾选 ---------- */
+  .tip-card{background:var(--soft-teal);border:1px solid var(--soft-teal-line);border-radius:14px;padding:12px 14px;font-size:12.5px;color:var(--teal-ink);display:flex;gap:9px;line-height:1.6}
+  .tip-card .i{font-size:16px;flex:0 0 auto}
+  .chip-group{margin-top:6px}
+  .chip{display:flex;align-items:flex-start;gap:11px;background:var(--card);border:1.5px solid var(--line);border-radius:14px;
+    padding:13px 14px;margin-bottom:10px;cursor:pointer;transition:.18s;user-select:none}
+  .chip:active{transform:scale(.99)}
+  .chip.sel{border-color:var(--teal-l);background:var(--soft-teal-2);box-shadow:0 2px 10px rgba(20,184,166,.12)}
+  .chip-box{width:20px;height:20px;border-radius:6px;border:2px solid var(--arrow);flex:0 0 auto;margin-top:1px;
+    display:flex;align-items:center;justify-content:center;transition:.18s}
+  .chip.sel .chip-box{background:var(--teal-l);border-color:var(--teal-l)}
+  .chip-box svg{width:13px;height:13px;stroke:#fff;stroke-width:3;fill:none;opacity:0;transition:.18s}
+  .chip.sel .chip-box svg{opacity:1}
+  .chip-label{flex:1;font-size:14px;line-height:1.5}
+  .lv-dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto;margin-top:7px}
+
+  .float-bar{position:sticky;bottom:0;background:linear-gradient(to top,var(--bg) 60%,transparent);padding:14px 16px 18px;z-index:8}
+  .btn-primary{width:100%;border:none;border-radius:14px;padding:15px;font-size:16px;font-weight:800;color:#fff;cursor:pointer;
+    background:linear-gradient(135deg,var(--teal),var(--teal-l));box-shadow:0 6px 18px rgba(15,118,110,.28);transition:.2s}
+  .btn-primary:active{transform:scale(.98)}
+  .btn-primary:disabled{background:var(--disabled);box-shadow:none;cursor:not-allowed}
+  .sel-count{text-align:center;font-size:12px;color:var(--sub);margin-bottom:8px}
+
+  /* ---------- 结果页 ---------- */
+  .risk-hero{padding:20px;color:#fff;border-radius:0 0 26px 26px;box-shadow:var(--shadow-lg);position:relative;overflow:hidden}
+  .risk-hero .meta{font-size:12px;opacity:.9;font-weight:600}
+  .risk-hero .row{display:flex;align-items:center;gap:14px;margin-top:8px}
+  .risk-ico{font-size:38px}
+  .risk-main h2{margin:0;font-size:26px;font-weight:900}
+  .risk-main .lvline{font-size:13px;opacity:.95;margin-top:2px}
+  .risk-desc{background:rgba(255,255,255,.16);border-radius:12px;padding:10px 13px;font-size:12.5px;margin-top:14px;line-height:1.6;backdrop-filter:blur(3px)}
+
+  .red-alert{background:var(--soft-red-2);border:1.5px solid var(--soft-red-line);border-radius:14px;padding:13px 14px;margin-top:16px;display:flex;gap:10px;color:var(--ink-red);font-size:12.5px;line-height:1.65}
+  .red-alert .i{font-size:17px;flex:0 0 auto}
+
+  /* 法定强制报告提示卡 */
+  .mandatory-card{background:var(--card);border:2px solid var(--red);border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}
+  .mc-top{padding:14px 15px;background:linear-gradient(135deg,var(--red),#b42318);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .mc-badge{background:rgba(255,255,255,.2);color:#fff;font-size:11px;font-weight:800;padding:3px 10px;border-radius:20px}
+  .mc-title{color:#fff;font-size:16px;font-weight:900}
+  .mc-call{margin:14px 14px 4px;background:var(--soft-red-2);border:1.5px solid var(--soft-red-line);border-radius:12px;padding:12px 13px;color:var(--ink-red);font-size:12.5px;line-height:1.7}
+  .mc-call-h{font-weight:900;font-size:13px;margin-bottom:4px}
+  .mc-call b{font-size:15px}
+  .mc-sec{padding:12px 15px;border-bottom:1px solid var(--line-soft)}
+  .mc-h{font-size:13px;font-weight:800;color:var(--ink);margin-bottom:5px}
+  .mc-c{font-size:12.5px;color:var(--sub);line-height:1.7}
+  .mc-list{margin:4px 0 0;padding-left:20px;font-size:12.5px;color:var(--sub);line-height:1.75}
+  .mc-list li{margin-bottom:3px}
+  .mc-good{background:var(--soft-green)}
+  .mc-good .mc-h{color:var(--ink-green)}
+  .mc-good .mc-c{color:var(--ink-green)}
+  .mc-warn{background:var(--soft-amber)}
+  .mc-warn .mc-h{color:var(--ink-orange)}
+  .mc-warn .mc-c{color:var(--ink-orange)}
+  .mc-legal{padding:11px 15px;font-size:10.5px;color:var(--muted);line-height:1.6;background:var(--hair)}
+
+  .tabs{display:flex;gap:6px;overflow-x:auto;padding:16px 16px 4px;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{flex:0 0 auto;padding:8px 14px;border-radius:20px;font-size:13px;font-weight:700;background:var(--card);color:var(--sub);
+    border:1.5px solid var(--line);cursor:pointer;transition:.18s;white-space:nowrap}
+  .tab.on{background:var(--teal);color:#fff;border-color:var(--teal);box-shadow:0 4px 12px rgba(15,118,110,.25)}
+
+  .panel{display:none;padding:12px 16px 10px}
+  .panel.on{display:block;animation:fade .3s ease}
+
+  .card{background:var(--card);border-radius:16px;padding:16px;box-shadow:var(--shadow);margin-bottom:14px;border:1px solid var(--line-soft)}
+
+  /* 处置步骤时间线 */
+  .step-item{display:flex;gap:12px;position:relative;padding-bottom:16px}
+  .step-item:last-child{padding-bottom:0}
+  .step-item::before{content:"";position:absolute;left:15px;top:32px;bottom:-4px;width:2px;background:var(--line)}
+  .step-item:last-child::before{display:none}
+  .step-n{width:32px;height:32px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+    font-size:13px;font-weight:800;color:#fff;z-index:1}
+  .step-body{flex:1;padding-top:3px}
+  .step-body h4{margin:0 0 4px;font-size:14px;font-weight:800}
+  .step-body p{margin:0;font-size:12.5px;color:var(--sub);line-height:1.65}
+  .prio-tag{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:8px;margin-left:6px;vertical-align:middle}
+
+  /* 话术 */
+  .script-block{margin-bottom:16px}
+  .script-block:last-child{margin-bottom:0}
+  .script-h{font-size:13px;font-weight:800;margin-bottom:9px;display:flex;align-items:center;gap:6px}
+  .script-line{font-size:13px;padding:10px 12px;border-radius:10px;margin-bottom:8px;line-height:1.6;position:relative;padding-left:30px}
+  .script-line::before{position:absolute;left:11px;top:10px;font-weight:800}
+  .do-line{background:var(--soft-green);color:var(--ink-green)}
+  .do-line::before{content:"✓";color:var(--green)}
+  .dont-line{background:var(--soft-red);color:var(--red)}
+  .dont-line::before{content:"✕";color:var(--red)}
+
+  /* 量表 */
+  .scale-item{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px;cursor:pointer;transition:.18s}
+  .scale-item:active{transform:scale(.99)}
+  .scale-item .sh{display:flex;align-items:center;gap:10px}
+  .scale-item .si{width:38px;height:38px;border-radius:11px;background:var(--soft-teal);display:flex;align-items:center;justify-content:center;font-size:19px}
+  .scale-item h4{margin:0;font-size:14px;font-weight:800}
+  .scale-item .src{font-size:11px;color:var(--sub);margin-top:3px;line-height:1.5}
+  .scale-item .go{margin-left:auto;color:var(--teal);font-size:18px}
+
+  /* 热线 */
+  .hotline{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px}
+  .hotline.primary{background:linear-gradient(135deg,var(--grad-hot),var(--grad-hot-2));border-color:var(--soft-red-line)}
+  .hl-ico{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:19px;flex:0 0 auto}
+  .hl-txt{flex:1;min-width:0}
+  .hl-txt h4{margin:0;font-size:14px;font-weight:800;display:flex;align-items:center;gap:6px}
+  .hl-txt .num{font-size:17px;font-weight:900;letter-spacing:.5px}
+  .hl-txt p{margin:1px 0 0;font-size:11px;color:var(--sub)}
+  .hl-call{border:none;background:var(--teal);color:#fff;border-radius:10px;padding:8px 13px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+  .hl-call.red{background:#e11d48}
+
+  /* 安全计划 */
+  .sp-item{display:flex;gap:12px;margin-bottom:14px}
+  .sp-n{width:26px;height:26px;border-radius:8px;background:var(--soft-teal);color:var(--teal-ink);font-weight:800;font-size:13px;
+    display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .sp-body{flex:1}
+  .sp-body h4{margin:2px 0 5px;font-size:13.5px;font-weight:800}
+  .sp-body textarea{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:9px 11px;font-size:12.5px;
+    font-family:inherit;resize:vertical;min-height:52px;line-height:1.6;color:var(--ink)}
+  .sp-body textarea:focus{outline:none;border-color:var(--teal-l);background:var(--focus-bg)}
+
+  /* 量表答题弹层 */
+  .mask{position:fixed;inset:0;background:var(--mask);z-index:50;display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(2px)}
+  .mask.on{display:flex;animation:fade .25s ease}
+  .sheet{background:var(--sheet-bg);width:100%;max-width:520px;border-radius:24px 24px 0 0;max-height:92vh;display:flex;flex-direction:column;animation:up .3s ease}
+  @keyframes up{from{transform:translateY(100%)}to{transform:none}}
+  .sheet-head{padding:18px 20px 14px;border-bottom:1px solid var(--line);position:relative;flex:0 0 auto}
+  .sheet-head h3{margin:0;font-size:17px;font-weight:800;padding-right:30px}
+  .sheet-head .src{font-size:11px;color:var(--sub);margin-top:4px}
+  .sheet-close{position:absolute;right:16px;top:16px;width:30px;height:30px;border-radius:50%;border:none;background:var(--icon-bg);
+    font-size:17px;cursor:pointer;color:var(--sub)}
+  .sheet-body{overflow-y:auto;padding:16px 20px;flex:1}
+  .q{margin-bottom:18px;border-radius:10px;padding:2px 0;transition:background .2s}
+  .q.flash{animation:qflash 1.5s ease}
+  @keyframes qflash{0%,100%{background:transparent;box-shadow:0 0 0 0 transparent}
+    15%,55%{background:var(--soft-amber);box-shadow:0 0 0 6px var(--soft-amber)}}
+  /* 量表作答进度与防呆 */
+  .scale-prog{font-size:12.5px;color:var(--sub);text-align:center;margin-bottom:10px;min-height:18px}
+  .scale-prog b{color:var(--orange);font-size:14px}
+  .scale-prog.done{color:var(--green);font-weight:700}
+  .btn-primary.pending{opacity:.62}
+  .q-title{font-size:13.5px;font-weight:700;margin-bottom:10px;line-height:1.6}
+  .q-title .qn{color:var(--teal);margin-right:5px}
+  .opts{display:flex;flex-wrap:wrap;gap:8px}
+  .opt{padding:8px 12px;border-radius:10px;border:1.5px solid var(--line);font-size:12.5px;cursor:pointer;background:var(--card);transition:.15s}
+  .opt.sel{background:var(--soft-teal);border-color:var(--teal-l);color:var(--teal-d);font-weight:700}
+  .sheet-foot{padding:14px 20px 20px;border-top:1px solid var(--line);flex:0 0 auto}
+  .result-box{border-radius:14px;padding:16px;margin-top:6px}
+  .result-box .rl{font-size:12px;font-weight:700;opacity:.85}
+  .result-box .rs{font-size:22px;font-weight:900;margin:3px 0}
+  .result-box .ra{font-size:12.5px;line-height:1.7;margin-top:8px}
+
+  /* 底部操作 */
+  .result-actions{display:flex;gap:10px;padding:8px 16px 34px}
+  .btn-ghost{flex:1;border:1.5px solid var(--line);background:var(--card);border-radius:13px;padding:13px;font-size:13.5px;
+    font-weight:700;color:var(--ink);cursor:pointer}
+  .btn-solid{flex:1;border:none;background:var(--teal);color:#fff;border-radius:13px;padding:13px;font-size:13.5px;font-weight:700;cursor:pointer}
+
+  /* 本地热线入口 */
+  .local-entry{width:100%;display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,var(--grad-blue),var(--soft-teal));
+    border:1.5px solid var(--blue-line);border-radius:16px;padding:14px;margin-bottom:6px;cursor:pointer;text-align:left;transition:.2s}
+  .local-entry:active{transform:scale(.99)}
+  .le-ico{width:44px;height:44px;border-radius:13px;background:linear-gradient(135deg,#3b82f6,#0f766e);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:21px;flex:0 0 auto}
+  .le-txt{flex:1;min-width:0}
+  .le-txt h3{margin:0;font-size:14.5px;font-weight:800;color:var(--ink-blue)}
+  .le-txt p{margin:2px 0 0;font-size:11.5px;color:var(--sub);line-height:1.5}
+  .le-arrow{color:var(--arrow);font-size:20px}
+
+  /* 可选自动定位（次要区块） */
+  .loc-opt{margin-top:22px;padding-top:18px;border-top:1px dashed var(--line)}
+  .loc-opt-h{font-size:12px;color:var(--sub);font-weight:700;margin-bottom:10px}
+  .locate-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;
+    background:var(--card);color:var(--teal-ink);border:1.5px solid var(--teal-l);border-radius:12px;
+    padding:11px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;transition:.2s}
+  .locate-btn:active{transform:scale(.99)}
+  .loc-opt-note{font-size:11px;color:var(--muted);line-height:1.7;margin:10px 2px 0}
+
+  /* 定位状态 */
+  .loc-status{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 14px;margin-bottom:14px;
+    font-size:12.5px;color:var(--sub);display:flex;align-items:center;gap:9px;line-height:1.6}
+  .loc-status .spin{width:16px;height:16px;border:2px solid var(--spin-bg);border-top-color:var(--teal);border-radius:50%;
+    animation:spin .8s linear infinite;flex:0 0 auto}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .loc-status b{color:var(--teal-d)}
+  .loc-status .retry{color:var(--teal);font-weight:700;cursor:pointer;white-space:nowrap;margin-left:auto}
+
+  .province-picker{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:16px}
+  .province-picker label{font-size:12px;color:var(--sub);display:block;margin-bottom:7px}
+  .province-picker select{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:14px;
+    font-family:inherit;color:var(--ink);background:var(--card);appearance:auto}
+  .province-picker select:focus{outline:none;border-color:var(--teal-l)}
+
+  .local-sec-h{font-size:14px;font-weight:800;margin:18px 2px 10px;display:flex;align-items:center;gap:7px}
+  .center-card{display:flex;align-items:center;gap:11px;background:var(--card);border:1px solid var(--line);border-radius:13px;
+    padding:12px 13px;margin-bottom:9px}
+  .center-card .ci{width:38px;height:38px;border-radius:11px;background:var(--soft-orange);display:flex;align-items:center;
+    justify-content:center;font-size:18px;flex:0 0 auto}
+  .center-card .ct{flex:1;min-width:0}
+  .center-card .ct h4{margin:0;font-size:13.5px;font-weight:800}
+  .center-card .ct p{margin:1px 0 0;font-size:11px;color:var(--sub)}
+  .center-card .ct .cnum{font-size:14px;font-weight:800;color:var(--orange)}
+
+  .referral-note{background:var(--soft-amber);border:1px solid var(--soft-amber-line);border-radius:12px;padding:11px 13px;font-size:12px;
+    color:var(--ink-orange);line-height:1.65;display:flex;gap:8px;margin-top:12px}
+
+  .footer{padding:18px 16px 30px;font-size:11px;color:var(--muted);line-height:1.7;text-align:center}
+  .footer b{color:var(--muted-2)}
+
+  /* ---------- 关于 / 版本 / 联系方式 ---------- */
+  .about-entry{display:flex;align-items:center;gap:8px;background:var(--soft-teal);border:1px solid var(--soft-teal-line);border-radius:12px;
+    padding:10px 13px;margin-bottom:14px;cursor:pointer;color:var(--teal-ink);font-size:12.5px;font-weight:700;text-align:left;width:100%;font-family:inherit}
+  .about-entry .ae-arrow{margin-left:auto;color:var(--teal-ink);font-size:17px}
+  .foot-author{margin:10px 0 2px;font-size:11.5px;color:var(--sub)}
+  .foot-author a{color:var(--teal);text-decoration:none;font-weight:800}
+  .foot-ver{font-size:10.5px;color:var(--muted-3);margin-top:3px}
+  .foot-meta{margin-top:8px;font-size:10.5px;color:var(--muted-3)}
+
+  .ver-hero{padding:24px 20px 22px;color:#fff;background:linear-gradient(135deg,#0f766e,#0d9488 55%,#14b8a6);
+    border-radius:0 0 26px 26px;box-shadow:var(--shadow-lg);position:relative;overflow:hidden}
+  .ver-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.2);padding:4px 12px;
+    border-radius:20px;font-size:12px;font-weight:700;position:relative;z-index:1}
+  .ver-hero h2{margin:12px 0 3px;font-size:23px;font-weight:900;position:relative;z-index:1}
+  .ver-hero p{margin:0;font-size:12.5px;opacity:.92;position:relative;z-index:1}
+  .ver-info{display:flex;gap:10px;margin-top:15px;flex-wrap:wrap;position:relative;z-index:1}
+  .ver-chip{background:rgba(255,255,255,.18);border-radius:10px;padding:7px 12px;font-size:11.5px;backdrop-filter:blur(3px)}
+  .ver-chip b{font-size:14px;margin-left:2px}
+
+  .contact-card{background:linear-gradient(135deg,var(--grad-blue),var(--soft-teal));border:1.5px solid var(--blue-line);border-radius:16px;
+    padding:16px;margin-bottom:14px}
+  .contact-card .cc-h{font-size:13px;font-weight:800;color:var(--ink-blue);margin-bottom:3px}
+  .contact-card .cc-sub{font-size:11.5px;color:var(--sub);margin-bottom:12px;line-height:1.6}
+  .contact-row{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:10px 12px;margin-bottom:8px}
+  .contact-row:last-child{margin-bottom:0}
+  .contact-row .cr-ico{width:36px;height:36px;border-radius:10px;background:var(--blue-line);display:flex;align-items:center;
+    justify-content:center;font-size:17px;flex:0 0 auto}
+  .contact-row .cr-tx{flex:1;min-width:0}
+  .contact-row .cr-tx .lb{font-size:11px;color:var(--sub)}
+  .contact-row .cr-tx .val{font-size:16px;font-weight:900;color:var(--ink-blue-2);letter-spacing:.4px}
+  .contact-row .cr-btn{border:none;background:var(--teal);color:#fff;border-radius:9px;padding:7px 11px;font-size:12px;
+    font-weight:700;cursor:pointer;white-space:nowrap}
+  .contact-row .cr-btn.alt{background:#3b82f6}
+
+  .about-card{background:var(--card);border-radius:16px;padding:16px;box-shadow:var(--shadow);margin-bottom:14px;border:1px solid var(--line-soft)}
+  .about-card h3{font-size:14px;font-weight:800;margin:0 0 10px;display:flex;align-items:center;gap:7px}
+  .about-card p{font-size:12.5px;color:var(--sub);line-height:1.75;margin:0 0 8px}
+  .about-card p:last-child{margin-bottom:0}
+  .about-card .hint{background:var(--soft-amber);border:1px solid var(--soft-amber-line);border-radius:10px;padding:10px 12px;
+    font-size:12px;color:var(--ink-orange);line-height:1.7}
+
+  .pfa-tbl{width:100%;border-collapse:collapse;font-size:12px}
+  .pfa-tbl th{background:var(--soft-teal);color:var(--teal-ink);text-align:left;padding:8px 9px;font-weight:800}
+  .pfa-tbl td{padding:8px 9px;border-bottom:1px solid var(--hair);vertical-align:top;line-height:1.55}
+  .pfa-tbl tr:last-child td{border-bottom:none}
+  .pfa-tbl .c1{width:50%;color:var(--ink)}
+  .pfa-tbl .c2{color:var(--sub)}
+  .tag-pill{display:inline-block;font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;margin-right:5px;vertical-align:middle}
+  .tag-yes{background:var(--soft-green);color:var(--ink-green)}
+  .tag-beyond{background:var(--soft-amber);color:var(--ink-orange)}
+  .tag-not{background:var(--soft-red);color:var(--red)}
+
+  .wording-good{background:var(--soft-green);color:var(--ink-green);border-left:3px solid var(--green);border-radius:0 10px 10px 0;
+    padding:10px 12px;font-size:12.5px;line-height:1.7;margin-bottom:8px}
+  .wording-bad{background:var(--soft-red);color:var(--red);border-left:3px solid var(--red);border-radius:0 10px 10px 0;
+    padding:10px 12px;font-size:12.5px;line-height:1.7}
+
+  .chg-item{display:flex;gap:10px;padding:9px 0;border-bottom:1px dashed var(--line);font-size:12.5px}
+  .chg-item:last-child{border-bottom:none}
+  .chg-v{flex:0 0 auto;font-weight:800;color:var(--teal);font-size:12px;padding-top:1px}
+  .chg-d{color:var(--sub);line-height:1.6}
+
+  .toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%) translateY(10px);background:rgba(31,41,55,.94);color:#fff;
+    padding:10px 18px;border-radius:20px;font-size:13px;z-index:100;opacity:0;pointer-events:none;transition:.25s;white-space:nowrap}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* 悬浮字号按钮。按钮在 #app 之外，不参与正文缩放，尺寸/位置恒为原生值，
+     任何字号/视口下都稳定 52px、间距 8px，无需反向缩放。 */
+  .font-fab{position:fixed;right:14px;bottom:18px;z-index:80;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:1px;width:52px;height:52px;border-radius:50%;border:1.5px solid rgba(255,255,255,.85);cursor:pointer;
+    background:linear-gradient(135deg,#0f766e,#0d9488);color:#fff;box-shadow:0 6px 18px rgba(15,118,110,.35);
+    font-family:inherit;transition:transform .15s;user-select:none}
+  .font-fab:active{transform:scale(.93)}
+  .font-fab .ft-ico{font-size:16px;font-weight:800;line-height:1}
+  .font-fab .ft-label{font-size:9px;font-weight:600;opacity:.95;line-height:1}
+
+  /* 悬浮主题按钮（深色模式切换），缩放处理同字号按钮 */
+  .theme-fab{position:fixed;right:14px;bottom:78px;z-index:80;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:1px;width:52px;height:52px;border-radius:50%;border:1.5px solid rgba(255,255,255,.85);cursor:pointer;
+    background:linear-gradient(135deg,#475569,#1e293b);color:#fff;box-shadow:0 6px 18px rgba(15,23,42,.3);
+    font-family:inherit;transition:transform .15s;user-select:none}
+  .theme-fab:active{transform:scale(.93)}
+  .theme-fab .th-ico{font-size:17px;line-height:1}
+  .theme-fab .th-label{font-size:9px;font-weight:600;opacity:.95;line-height:1}
+
+  /* 弹层打开时隐藏悬浮按钮，避免遮挡底部「知道了」按钮 */
+  .mask.on ~ .theme-fab,.mask.on ~ .font-fab{opacity:0;pointer-events:none}
+
+  @media(min-width:768px) and (pointer:fine){body{box-shadow:0 0 60px rgba(0,0,0,.06)}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- ========== 首页 ========== -->
+  <section class="page active" id="page-home">
+    <div class="hero">
+      <button class="hero-info" onclick="showPage('about')" title="关于 / 版本 / 联系作者">ℹ</button>
+      <span class="badge-top">⚡ 一线工作者专用 · 辅助决策工具</span>
+      <h1>安心护航</h1>
+      <p>心理危机应急处置辅助系统 · 选情况，出方案</p>
+    </div>
+    <div class="sos-bar">
+      <button class="sos-btn" onclick="call('12356')">📞 12356<small>一键求助</small></button>
+      <div class="sos-info"><b>全国心理援助热线</b><br>24小时 · 遇危机先打电话</div>
+      <span class="sos-more" onclick="showAllHotlines()">更多热线 ›</span>
+    </div>
+    <div class="wrap">
+      <button class="local-entry" onclick="goLocal()">
+        <div class="le-ico">📍</div>
+        <div class="le-txt"><h3>本地热线与转诊机构</h3><p>自动定位，显示你所在省市的心理热线与精神卫生中心</p></div>
+        <span class="le-arrow">›</span>
+      </button>
+      <div class="sec-title">选择危机类型 <span class="sec-sub">点击开始评估</span></div>
+      <div class="scene-grid" id="sceneGrid"></div>
+      <div class="footer" id="homeFoot"></div>
+    </div>
+  </section>
+
+  <!-- ========== 本地热线页 ========== -->
+  <section class="page" id="page-local">
+    <div class="nav">
+      <button class="nav-back" onclick="showPage('home')">‹</button>
+      <h2>本地热线与转诊机构</h2>
+      <span class="step">按省市</span>
+    </div>
+    <div class="wrap">
+      <div class="tip-card"><span class="i">📍</span><span>先在下方<strong>选你所在的省市</strong>，即可看到当地心理援助热线和精神卫生中心。选过一次会自动记住，下次打开直接带出。</span></div>
+      <div class="province-picker" style="margin-top:14px">
+        <label for="provinceSel">选择省市（推荐 · 无需授权）：</label>
+        <select id="provinceSel" onchange="onProvinceChange(this.value)">
+          <option value="">— 请选择 —</option>
+        </select>
+      </div>
+      <div id="localContent"></div>
+      <div class="loc-opt">
+        <div class="loc-opt-h">不想手动选？可尝试自动定位</div>
+        <button class="locate-btn" onclick="detectLocation()">📍 自动定位当前省市</button>
+        <p class="loc-opt-note">🔒 定位只用于自动带出本地号码，工具不上传、不存储你的位置。你也可以完全不授权，直接用上面的手动选择。部分浏览器（如用文件方式打开时）会禁止定位，属正常现象。</p>
+        <div class="loc-status" id="locStatus"></div>
+      </div>
+      <div class="footer" style="padding-top:4px">号码可能随时间调整，请以当地官方公布为准。遇即时危险请拨打 110 / 120。</div>
+    </div>
+  </section>
+
+  <!-- ========== 关于本工具页 ========== -->
+  <section class="page" id="page-about">
+    <div class="nav">
+      <button class="nav-back" onclick="showPage('home')">‹</button>
+      <h2>关于本工具</h2>
+      <span class="step">版本 · 说明 · 联系</span>
+    </div>
+    <div class="ver-hero" id="aboutHero"></div>
+    <div class="wrap">
+      <div class="contact-card" id="aboutContact"></div>
+      <div class="about-card" id="aboutPfa"></div>
+      <div class="about-card" id="aboutWording"></div>
+      <div class="about-card" id="aboutMandatory"></div>
+      <div class="about-card" id="aboutCopyright"></div>
+      <div class="about-card" id="aboutChanges"></div>
+      <div class="footer" id="aboutFoot"></div>
+    </div>
+  </section>
+
+  <!-- ========== 情况勾选页 ========== -->
+  <section class="page" id="page-situation">
+    <div class="nav">
+      <button class="nav-back" onclick="showPage('home')">‹</button>
+      <h2 id="sitTitle">选择情况</h2>
+      <span class="step">第 1 / 2 步</span>
+    </div>
+    <div class="wrap">
+      <div class="tip-card"><span class="i">👆</span><span>请勾选当事人当前出现的<strong>所有情况</strong>，系统将据此自动判定风险等级并生成针对性应急方案。</span></div>
+      <div class="chip-group" id="chipGroup"></div>
+    </div>
+    <div class="float-bar">
+      <div class="sel-count" id="selCount">已选 0 项情况</div>
+      <button class="btn-primary" id="genBtn" disabled onclick="generatePlan()">生成应急方案 →</button>
+    </div>
+  </section>
+
+  <!-- ========== 结果页 ========== -->
+  <section class="page" id="page-result">
+    <div class="risk-hero" id="riskHero"></div>
+    <div class="wrap" style="padding-top:0">
+      <div class="red-alert" id="redAlert" style="display:none"></div>
+      <div id="mandatoryBox" style="display:none;margin-top:14px"></div>
+    </div>
+    <div class="tabs" id="tabs"></div>
+    <div id="panels"></div>
+    <div class="result-actions">
+      <button class="btn-ghost" onclick="showPage('situation')">‹ 重新选择</button>
+      <button class="btn-solid" onclick="window.print()">🖨 打印 / 保存方案</button>
+    </div>
+    <div class="footer"><b>免责声明：</b><span id="resultDisclaimer"></span><div class="foot-meta" id="resultMeta"></div></div>
+  </section>
+
+</div>
+
+<!-- 量表弹层 -->
+<div class="mask" id="mask" onclick="if(event.target===this)closeScale()">
+  <div class="sheet">
+    <div class="sheet-head">
+      <button class="sheet-close" onclick="closeScale()">✕</button>
+      <h3 id="scaleName">量表</h3>
+      <div class="src" id="scaleSrc"></div>
+    </div>
+    <div class="sheet-body" id="scaleBody"></div>
+    <div class="sheet-foot" id="scaleFoot"></div>
+  </div>
+</div>
+
+<!-- 悬浮字号按钮：三档循环（标准/大/特大），随时可调、自动记住 -->
+<button class="theme-fab" id="themeBtn" onclick="cycleTheme()" aria-label="切换主题" title="点击切换：跟随系统 / 浅色 / 深色">
+  <span class="th-ico">🌗</span><span class="th-label">跟随</span>
+</button>
+<button class="font-fab" id="fontBtn" onclick="cycleFont()" aria-label="切换字号" title="点击切换字号大小">
+  <span class="ft-ico">Aa</span><span class="ft-label">标准</span>
+</button>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===== data.js ===== */
+/* ============================================================
+ * 安心护航 · 心理危机应急辅助系统
+ * 数据层：危机场景 / 情况标签 / 分级规则 / 权威量表
+ * 内容依据：Roberts 七阶段危机干预模型、Gilliland 六步法、
+ * Stanley-Brown 安全计划六步法、C-SSRS、PHQ-9、ASQ、GAD-7、
+ * 《反家庭暴力法》、国家卫健委 12356 热线等公开权威资料整理。
+ * 仅供一线社工/咨询师辅助参考，不替代专业诊断与紧急救援。
+ * ============================================================ */
+
+// ---------- 通用热线资源 ----------
+const HOTLINES = [
+  { name: '全国心理援助热线', num: '12356', note: '24小时 · 国家卫健委', type: 'psy', primary: true },
+  { name: '报警', num: '110', note: '人身安全受威胁 / 正在发生', type: 'police' },
+  { name: '急救', num: '120', note: '自伤 / 过量 / 躯体急症', type: 'medical' },
+  { name: '妇联妇女维权热线', num: '12338', note: '家暴 / 妇女儿童权益', type: 'legal' },
+  { name: '青少年服务热线', num: '12355', note: '青少年心理与权益咨询', type: 'youth' },
+  { name: '希望24热线', num: '400-161-9995', note: '24小时心理危机干预', type: 'psy' }
+];
+
+// ---------- 风险等级定义 ----------
+const RISK_LEVELS = {
+  1: { key: 'critical', label: '紧急', color: '#d92d20', bg: '#fef3f2', fg: 'var(--red)',      bgv: 'var(--soft-red)',    desc: '存在即时人身危险，须立即介入、不得独处', icon: '🚨' },
+  2: { key: 'high', label: '高危', color: '#e8590c', bg: '#fff4e6', fg: 'var(--orange)',    bgv: 'var(--soft-orange)', desc: '风险显著，需当天安排陪护与专业转介', icon: '🔶' },
+  3: { key: 'medium', label: '中危', color: '#c79200', bg: '#fffaeb', fg: 'var(--amber)',    bgv: 'var(--soft-amber)',  desc: '需密切跟进，制定安全计划并链接支持', icon: '⚠️' },
+  4: { key: 'low', label: '关注', color: '#12805c', bg: '#ecfdf3', fg: 'var(--green)',    bgv: 'var(--soft-green)',  desc: '以心理支持、观察与资源链接为主', icon: '🟢' }
+};
+
+// ---------- 危机场景 ----------
+const SCENARIOS = [
+  {
+    id: 'suicide',
+    name: '自杀 / 自伤风险',
+    icon: '💔',
+    color: '#e11d48',
+    grad: ['#fb7185', '#e11d48'],
+    desc: '表达轻生念头、自伤行为或高危信号',
+    scales: ['cssrs', 'asq', 'phq9'],
+    chips: [
+      { id: 's1', t: '表达“不想活了 / 活着没意思”', lv: 2, tags: ['ideation'] },
+      { id: 's2', t: '明确说过要结束自己的生命', lv: 1, tags: ['ideation', 'intent'] },
+      { id: 's3', t: '已写下遗书 / 处理后事 / 道别', lv: 1, tags: ['plan', 'preparation'] },
+      { id: 's4', t: '已有具体自杀计划', lv: 1, tags: ['plan'] },
+      { id: 's5', t: '已准备工具或药物', lv: 1, tags: ['means', 'preparation'] },
+      { id: 's6', t: '已实施自伤 / 自杀行为', lv: 1, tags: ['attempt', 'medical'] },
+      { id: 's7', t: '近期反复自伤（如割腕）', lv: 2, tags: ['selfharm'] },
+      { id: 's8', t: '流露强烈绝望、无望感', lv: 2, tags: ['hopeless'] },
+      { id: 's9', t: '突然平静、赠送珍爱物品', lv: 1, tags: ['suddencalm'] },
+      { id: 's10', t: '大量饮酒 / 使用成瘾物质', lv: 2, tags: ['substance'] },
+      { id: 's11', t: '独处、拒绝见人 / 拒绝帮助', lv: 3, tags: ['isolate'] },
+      { id: 's12', t: '有既往自杀未遂史', lv: 2, tags: ['history'] },
+      { id: 's13', t: '否认有风险、不愿签安全承诺', lv: 3, tags: ['denial'] }
+    ],
+    steps: [
+      { p: 0, t: '确保安全，不让其独处', d: '立即安排专人一对一陪护，移除周围的药物、利器等致命手段；咨询师/社工不得让其离开视线。', tag: 'all' },
+      { p: 0, t: '直接、平静地询问自杀意念', d: '用 C-SSRS 递进问法：“最近有没有觉得活着没意思？”→“有没有真的想过结束生命？”→“有没有想过怎么做、有没有准备？”直接询问不会诱发自杀。', tag: 'ideation' },
+      { p: 0, t: '立即进入紧急医疗处置', d: '已实施行为或有立即危险：拨打 120/110，或由陪护人直接陪同至最近的急诊/精神专科，切勿拖延或让其独处。', tag: 'attempt' },
+      { p: 0, t: '联络支持系统与督导', d: '第一时间通知家属/紧急联系人、机构督导与转介医院，明确分工，做好书面记录。', tag: 'all' },
+      { p: 1, t: '倾听与共情，不评判不说教', d: '用“我听到你真的撑得很辛苦”回应情绪，避免辩论“自杀对不对”，不承诺“一切都会好”。', tag: 'all' },
+      { p: 1, t: '移除并托管致命手段', d: '请可信的人代为保管药物、刀具、绳索等，限制高处/河边等危险场所的可及性。', tag: 'means' },
+      { p: 2, t: '共同制定安全计划', d: '按 Stanley-Brown 六步法，用当事人自己的话写下预警信号、内部应对、可求助的人与专业资源。', tag: 'all' },
+      { p: 2, t: '约定随访与转介', d: '24 小时内电话随访，一周内安排专业评估，明确下次联系时间并写入记录。', tag: 'all' }
+    ],
+    doScripts: [
+      '“你能告诉我，现在心里最难受的是什么吗？我在这儿听你说。”',
+      '“你刚才说想结束生命，我想确认一下——你现在有没有想过具体怎么做？”',
+      '“谢谢你愿意告诉我，这需要很大的勇气。我们先一起撑过今天。”',
+      '“我现在陪着你，我们一起联系能帮你的人，好吗？”'
+    ],
+    dontScripts: [
+      '“别想那么多，你还有爸妈/孩子呢。”（否定感受、制造内疚）',
+      '“你想过后果吗？这样做太自私了。”（评判、说教）',
+      '“我保证你以后会好起来的。”（无法保证的空承诺）',
+      '“这只是你一时想不开。”（轻视、淡化危机）'
+    ],
+    redNote: '出现“已实施自伤、有具体计划/工具、突然平静道别”任一项，即判定为【紧急】：立即陪同就医或拨打 120/110，全程不得离开当事人。'
+  },
+  {
+    id: 'campus',
+    name: '校园 / 青少年危机',
+    icon: '🎒',
+    color: '#7c3aed',
+    grad: ['#a78bfa', '#7c3aed'],
+    desc: '欺凌、自伤、网络伤害等学生心理危机',
+    scales: ['cssrs', 'phq9', 'gad7'],
+    chips: [
+      { id: 'c1', t: '正在遭受校园欺凌（殴打/辱骂/孤立）', lv: 2, tags: ['bully'] },
+      { id: 'c2', t: '被威胁、勒索或强制索要财物', lv: 2, tags: ['bully', 'safety'] },
+      { id: 'c3', t: '在社交平台发布遗言 / 消极内容', lv: 1, tags: ['online', 'ideation'] },
+      { id: 'c4', t: '携带危险物品到校', lv: 1, tags: ['means', 'safety'] },
+      { id: 'c5', t: '发现自伤痕迹或伤口', lv: 1, tags: ['selfharm'] },
+      { id: 'c6', t: '明确表达轻生念头', lv: 1, tags: ['ideation'] },
+      { id: 'c7', t: '情绪剧烈波动、易激惹或攻击', lv: 2, tags: ['emotion'] },
+      { id: 'c8', t: '近期家庭变故（离异/亲人离世）', lv: 2, tags: ['family'] },
+      { id: 'c9', t: '拒绝上学、逃学、失联', lv: 3, tags: ['truancy'] },
+      { id: 'c10', t: '成绩骤降、考试压力巨大', lv: 3, tags: ['academic'] },
+      { id: 'c11', t: '早恋 / 情感受挫', lv: 3, tags: ['relationship'] }
+    ],
+    steps: [
+      { p: 0, t: '先确保人身安全', d: '制止正在发生的伤害，隔离施暴者与受害者；有凶器、群体围殴或严重伤情立即报警 110、通知校方与家长。', tag: 'safety' },
+      { p: 0, t: '评估自伤自杀与欺凌风险', d: '单独、私密地询问，优先用 C-SSRS 简版；发现自伤/轻生信号按【自杀风险】紧急流程处置。', tag: 'ideation' },
+      { p: 0, t: '履行强制报告与上报', d: '未成年人遭受或疑似遭受侵害，须依法向公安机关报案并同步报告学校、班主任与未成年人保护机构，做好记录。', tag: 'all' },
+      { p: 1, t: '建立信任、保护隐私', d: '承诺在最小范围内告知“必须知道的人”，不在同学面前询问或处理，保护当事人尊严。', tag: 'all' },
+      { p: 1, t: '启动校园心理支持小组', d: '联动心理老师、班主任、家长三方，制定陪护与观察方案，明确谁在何时跟进。', tag: 'all' },
+      { p: 2, t: '处理欺凌事件本身', d: '依校规启动调查与处置，保护举报人，避免受害者与施暴者单独接触，必要时调整座位/班级。', tag: 'bully' },
+      { p: 2, t: '链接家庭与专业资源', d: '指导家长营造支持性家庭氛围，必要时转介儿童青少年精神科/心理咨询，约定随访时间。', tag: 'all' }
+    ],
+    doScripts: [
+      '“这件事不是你的错，你能告诉老师，做得很好。”',
+      '“我会保护你的隐私，只和需要帮你的人说，我们一起商量。”',
+      '“你现在安全吗？有没有人能立刻陪着你？”',
+      '“你愿意和我一起，把你信得过的人列出来吗？”'
+    ],
+    dontScripts: [
+      '“同学之间打打闹闹很正常，忍一忍就过去了。”',
+      '“为什么他们不欺负别人只欺负你？”（归责受害者）',
+      '“这点成绩/失恋就想不开，太脆弱了。”',
+      '当着其他同学的面询问或处理，泄露当事人隐私。'
+    ],
+    redNote: '未成年人遭受或疑似遭受侵害须依法强制报告；出现遗言、自伤或轻生信号，立即按自杀/自伤紧急流程处置并通知家长。'
+  },
+  {
+    id: 'dv',
+    name: '家庭暴力 / 儿童保护',
+    icon: '🛡️',
+    color: '#ea580c',
+    grad: ['#fb923c', '#ea580c'],
+    desc: '家暴、虐待、人身安全与强制报告',
+    scales: ['phq9', 'gad7'],
+    chips: [
+      { id: 'd1', t: '暴力正在发生 / 受到人身威胁', lv: 1, tags: ['ongoing', 'police'] },
+      { id: 'd2', t: '身体有伤、需要紧急就医', lv: 1, tags: ['medical', 'police'] },
+      { id: 'd3', t: '施暴者持有武器或酒后失控', lv: 1, tags: ['weapon', 'police'] },
+      { id: 'd4', t: '未成年人遭/疑似遭家暴、虐待', lv: 1, tags: ['child', 'mandatory'] },
+      { id: 'd5', t: '被威胁“敢报警就伤害你”', lv: 1, tags: ['threat', 'police'] },
+      { id: 'd6', t: '被限制人身自由、不让出门', lv: 2, tags: ['control'] },
+      { id: 'd7', t: '长期精神控制、羞辱、恐吓', lv: 2, tags: ['control'] },
+      { id: 'd8', t: '婴儿 / 老人 / 失能者无人照料', lv: 2, tags: ['vulnerable'] },
+      { id: 'd9', t: '反复发生，多次报警仍未解决', lv: 3, tags: ['repeat'] },
+      { id: 'd10', t: '想离开但无经济来源或住所', lv: 3, tags: ['shelter'] }
+    ],
+    steps: [
+      { p: 0, t: '立即脱离危险环境', d: '暴力进行时优先避险并拨打 110；协助受害人及子女前往安全的临时庇护场所或可信亲友处。', tag: 'ongoing' },
+      { p: 0, t: '及时就医并留存证据', d: '协助就医验伤，保留伤情照片、病历、报警回执、告诫书等；告诫书可作为申请庇护与人身安全保护令的证据。', tag: 'medical' },
+      { p: 0, t: '履行强制报告义务', d: '发现无/限制民事行为能力人（含未成年人）遭受或疑似遭受家暴，须立即向公安机关报案，信息予以保密。', tag: 'mandatory' },
+      { p: 0, t: '协助报警与人身安全保护令', d: '拨打 110 并说明“家庭暴力”；告知可向法院申请人身安全保护令（一般72小时内、紧急24小时内作出），必要时代为申请。', tag: 'police' },
+      { p: 1, t: '制定安全撤离计划', d: '备好证件、现金、药品与重要联系方式，约定暗号与集合点，避免与施暴者正面冲突。', tag: 'all' },
+      { p: 1, t: '链接庇护与法律援助', d: '联系妇联 12338、救助管理站/临时庇护所、法律援助机构，协助申请庇护与生活帮助。', tag: 'shelter' },
+      { p: 2, t: '保护儿童与弱势成员', d: '评估未成年人、老人、失能者的安全与照料，必要时联系未保中心、民政或福利机构安置。', tag: 'vulnerable' },
+      { p: 2, t: '持续跟进与心理支持', d: '定期回访安全状况，提供心理辅导与法治教育转介，避免施压“调解和好”。', tag: 'all' }
+    ],
+    doScripts: [
+      '“你现在安全吗？我们先一起离开这个环境。”',
+      '“这不是你的错，你有权得到保护。”',
+      '“我会陪你一起报警/就医，你需要的时候我都在。”',
+      '“为了保护孩子和你，有些情况我必须报告，我会告诉你我在做什么。”'
+    ],
+    dontScripts: [
+      '“清官难断家务事，你们自己先好好谈谈。”',
+      '“为了孩子忍一忍，家庭完整最重要。”',
+      '“他可能也是一时冲动，别把事情闹大。”',
+      '在未确保安全时安排受害人与施暴者当面对质调解。'
+    ],
+    redNote: '未成年人/无民事行为能力人遭或疑似遭家暴须依法强制报告；暴力正在发生、有武器或严重伤情，立即拨打 110。'
+  },
+  {
+    id: 'trauma',
+    name: '创伤 / 灾难急性应激',
+    icon: '🌪️',
+    color: '#0891b2',
+    grad: ['#22d3ee', '#0891b2'],
+    desc: '事故、灾害、丧亲后的急性应激反应',
+    scales: ['gad7', 'phq9'],
+    chips: [
+      { id: 't1', t: '刚经历 / 目睹伤亡事故或灾难', lv: 2, tags: ['acute'] },
+      { id: 't2', t: '持续惊恐、尖叫、失控', lv: 2, tags: ['acute', 'panic'] },
+      { id: 't3', t: '解离、木僵、反应迟钝', lv: 2, tags: ['dissociate'] },
+      { id: 't4', t: '出现自伤或轻生念头', lv: 1, tags: ['ideation'] },
+      { id: 't5', t: '闪回、噩梦、侵入性画面', lv: 3, tags: ['intrusion'] },
+      { id: 't6', t: '强烈自责、幸存者内疚', lv: 2, tags: ['guilt'] },
+      { id: 't7', t: '失去亲人 / 家园 / 重大丧失', lv: 2, tags: ['loss'] },
+      { id: 't8', t: '严重失眠（持续一周以上）', lv: 3, tags: ['sleep'] },
+      { id: 't9', t: '胸闷、心悸、呼吸困难', lv: 3, tags: ['somatic'] },
+      { id: 't10', t: '回避谈论或接触相关场景', lv: 3, tags: ['avoid'] }
+    ],
+    steps: [
+      { p: 0, t: '保障人身与医疗安全', d: '脱离危险现场，处理身体伤害；有重伤、过量或自伤风险立即拨打 120/110。', tag: 'acute' },
+      { p: 0, t: '心理急救：稳定、安抚、定向', d: '用平静语气和简短句子，帮助当事人确认“你现在是安全的、这里是哪里、今天几号”，避免强迫讲述细节。', tag: 'all' },
+      { p: 0, t: '评估自伤与失控风险', d: '若出现轻生念头或严重解离，按自杀/自伤紧急流程处置，安排专人陪护。', tag: 'ideation' },
+      { p: 1, t: '用着陆技术稳定情绪', d: '引导 5-4-3-2-1 感官着陆与缓慢呼吸（吸4秒、呼6秒），把注意力拉回当下。', tag: 'panic' },
+      { p: 1, t: '陪伴与基本照护', d: '协助联系亲友、提供饮水与保暖、减少刺激与围观；尊重其节奏，不逼迫倾诉。', tag: 'all' },
+      { p: 2, t: '链接社会支持与安置', d: '协助联系家人、社区、救助机构，解决住宿、生活与法律事务等现实困难。', tag: 'loss' },
+      { p: 2, t: '识别需转介的专业信号', d: '若症状持续加重、严重影响生活或出现创伤后应激障碍表现，转介精神科/创伤治疗；一周内随访。', tag: 'all' }
+    ],
+    doScripts: [
+      '“你现在在这里，是安全的。我会陪着你。”',
+      '“不着急讲发生了什么，我们先慢慢呼吸。”',
+      '“你活下来了，这不是你的错。”',
+      '“有什么需要，哪怕是一杯水，你都可以告诉我。”'
+    ],
+    dontScripts: [
+      '“别哭了 / 要坚强一点。”（压抑情绪表达）',
+      '“详细跟我说说当时到底怎么回事。”（强迫回忆、二次创伤）',
+      '“至少你还活着，应该庆幸。”（否定痛苦）',
+      '“这一切都会过去的，别想了。”（无效安慰）'
+    ],
+    redNote: '出现轻生念头、严重解离或失控，立即按自杀/自伤紧急流程处置并安排陪护，勿让当事人独处。'
+  },
+  {
+    id: 'panic',
+    name: '急性情绪崩溃 / 惊恐发作',
+    icon: '🌊',
+    color: '#0d9488',
+    grad: ['#2dd4bf', '#0d9488'],
+    desc: '濒死感、过度换气、失控大哭等',
+    scales: ['gad7', 'phq9'],
+    chips: [
+      { id: 'p1', t: '濒死感 / 失控感 / 觉得自己要疯了', lv: 2, tags: ['panic'] },
+      { id: 'p2', t: '呼吸困难、过度换气', lv: 2, tags: ['breath'] },
+      { id: 'p3', t: '有自伤冲动', lv: 1, tags: ['selfharm'] },
+      { id: 'p4', t: '药物 / 酒精过量', lv: 1, tags: ['substance', 'medical'] },
+      { id: 'p5', t: '胸闷胸痛、心跳剧烈', lv: 2, tags: ['somatic', 'medical'] },
+      { id: 'p6', t: '手脚麻木、颤抖、出汗', lv: 3, tags: ['somatic'] },
+      { id: 'p7', t: '大哭 / 喊叫、难以安抚', lv: 3, tags: ['crying'] },
+      { id: 'p8', t: '首次发作、极度恐惧', lv: 3, tags: ['first'] },
+      { id: 'p9', t: '反复发作、害怕再次发作', lv: 3, tags: ['repeat'] }
+    ],
+    steps: [
+      { p: 0, t: '陪伴并转移到安静环境', d: '保持镇定，用平稳语气陪伴，带离拥挤嘈杂场所，解开紧身衣物，减少围观与刺激。', tag: 'all' },
+      { p: 0, t: '先排除躯体急症', d: '胸痛、呼吸困难、意识改变或疑似过量时，先拨打 120 排除心梗等器质性问题，再按心理危机处理。', tag: 'medical' },
+      { p: 0, t: '评估并处理自伤冲动', d: '有自伤冲动立即移除危险物品、专人陪护，并按自杀/自伤紧急流程评估。', tag: 'selfharm' },
+      { p: 1, t: '引导缓慢呼吸', d: '示范腹式呼吸：“吸气4秒—呼气6秒”，延长呼气激活副交感神经，打破“恐惧—过度换气”循环。', tag: 'breath' },
+      { p: 1, t: '5-4-3-2-1 感官着陆', d: '说出看到的5样、触摸到的4样、听到的3种、闻到的2种、尝到的1种，把注意力拉回当下。', tag: 'panic' },
+      { p: 2, t: '正常化并给予确定感', d: '告知“这是惊恐发作，很难受但没有生命危险，会慢慢过去”，陪伴直至完全平复。', tag: 'all' },
+      { p: 2, t: '事后梳理与转介', d: '平复后简要讨论诱因与应对方式，发作频繁或影响生活者转介心理治疗/精神科，约定随访。', tag: 'all' }
+    ],
+    doScripts: [
+      '“我在这里陪着你，我们一起慢慢呼吸。”',
+      '“跟着我：吸气……呼气……对，就是这样。”',
+      '“这种感觉虽然难受，但会过去，你现在是安全的。”',
+      '“我们一起来数一数，你能看到哪五样东西？”'
+    ],
+    dontScripts: [
+      '“你就是想太多了 / 别自己吓自己。”',
+      '“有什么好怕的，深呼吸就好了。”（轻描淡写）',
+      '“别哭了，冷静点！”（命令、加压）',
+      '在发作时反复追问原因或讲道理。'
+    ],
+    redNote: '胸痛、呼吸困难或疑似药物过量，先拨打 120 排除躯体急症；有自伤冲动立即按自杀/自伤紧急流程处置。'
+  },
+  {
+    id: 'child',
+    name: '未成年人遭侵害 / 性侵',
+    icon: '🧒',
+    color: '#be185d',
+    grad: ['#f472b6', '#be185d'],
+    desc: '未成年人遭性侵、虐待、遗弃、拐卖等侵害',
+    scales: ['cssrs'],
+    mandatory: true,
+    chips: [
+      { id: 'm1', t: '生殖器官 / 隐私部位有非正常损伤', lv: 1, tags: ['sexual', 'mandatory'] },
+      { id: 'm2', t: '不满 14 周岁遭 / 疑似遭性侵、怀孕、流产', lv: 1, tags: ['sexual', 'mandatory'] },
+      { id: 'm3', t: '14 周岁以上遭性侵所致怀孕、流产', lv: 1, tags: ['sexual', 'mandatory'] },
+      { id: 'm4', t: '正在遭受侵害 / 面临即时危险', lv: 1, tags: ['ongoing', 'mandatory'] },
+      { id: 'm5', t: '多处损伤、严重营养不良、意识不清，疑似虐待', lv: 1, tags: ['abuse', 'mandatory'] },
+      { id: 'm6', t: '被遗弃或长期处于无人照料状态', lv: 1, tags: ['abandon', 'mandatory'] },
+      { id: 'm7', t: '来源不明 / 失踪 / 疑似被拐卖、收买', lv: 1, tags: ['traffic', 'mandatory'] },
+      { id: 'm8', t: '被组织乞讨', lv: 1, tags: ['beggar', 'mandatory'] },
+      { id: 'm9', t: '因非正常原因导致伤残 / 死亡', lv: 1, tags: ['mandatory'] },
+      { id: 'm10', t: '出现自伤 / 轻生念头', lv: 1, tags: ['ideation'] },
+      { id: 'm11', t: '恐惧、沉默、回避，或异常乖顺', lv: 2, tags: ['trauma'] },
+      { id: 'm12', t: '强烈自责、羞耻，认为是自己的错', lv: 2, tags: ['guilt'] },
+      { id: 'm13', t: '施害者是熟人 / 家人 / 老师，孩子不敢说', lv: 2, tags: ['known'] },
+      { id: 'm14', t: '监护人知情但隐瞒、不配合', lv: 2, tags: ['guardian'] }
+    ],
+    steps: [
+      { p: 0, t: '确保人身安全，脱离危险源', d: '立即让孩子离开施害者或危险环境；侵害正在发生或生命受威胁时，马上拨打 110（报警）、120（急救）。', tag: 'ongoing' },
+      { p: 0, t: '依法立即强制报告（法定义务）', d: '发现未成年人遭受或疑似遭受侵害，社工、教师、医护等法定报告主体须【立即】向公安机关报案或举报（110），并按主管机关要求报告备案。不得内部消化、不得等待监护人同意、不得“先观察再说”。', tag: 'mandatory' },
+      { p: 0, t: '保护现场与证据', d: '不清洗、不更换衣物、不擅自处理伤处；保留相关衣物、聊天记录、照片等，配合公安机关依法取证。', tag: 'sexual' },
+      { p: 0, t: '评估并处理自伤自杀风险', d: '温和评估轻生念头，一旦出现即按【自杀/自伤】紧急流程安排专人陪护，切勿让孩子独处。', tag: 'ideation' },
+      { p: 1, t: '保护性倾听，不追问细节', d: '相信孩子、不质疑、不诱导复述，用适合其年龄的语言沟通，避免反复询问造成二次创伤。', tag: 'trauma' },
+      { p: 1, t: '明确告诉孩子“这不是你的错”', d: '反复安抚羞耻与自责：“你没有做错任何事，报告是为了保护你。”帮助其重建安全感。', tag: 'guilt' },
+      { p: 1, t: '严格保密，最小范围知情', d: '仅在最小范围内告知必须知道的人（督导、公安、监护评估）；严禁拍照录像，严禁在网络或私下传播涉案信息。', tag: 'all' },
+      { p: 2, t: '联动转介与后续保护', d: '联动公安、民政/未成年人保护中心、妇联、法律援助与专业心理援助，跟进安置、医疗、心理与司法进程并做好记录。', tag: 'all' }
+    ],
+    doScripts: [
+      '“谢谢你愿意告诉我，你能说出来，已经很不容易了。”',
+      '“这不是你的错，你没有做错任何事，我再说一遍——不是你的错。”',
+      '“现在你在这里是安全的，我会一直陪着你。”',
+      '“为了保护你，我需要通知能帮到你的人，我们一起面对，好吗？”',
+      '“说多少、什么时候说，都由你决定，我会听你的。”'
+    ],
+    dontScripts: [
+      '“你当时为什么不反抗 / 为什么不早点说？”（指责受害者）',
+      '“家丑不可外扬，这事别告诉别人。”（隐瞒，且违背强制报告义务）',
+      '“详细说说当时到底发生了什么？”（反复追问细节，造成二次创伤）',
+      '“先别报警，等你爸妈来了再说。”（拖延报告，可能违法）',
+      '“私下解决算了，报了对孩子不好。”（内部消化，可能违法）'
+    ],
+    redNote: '凡发现未成年人遭受或疑似遭受侵害，无论孩子是否求助、监护人是否同意，均须【立即】向公安机关报案（110）——这是法定强制义务，不报告造成严重后果将被追责。'
+  }
+];
+
+// ---------- 侵害未成年人案件强制报告制度 ----------
+// 依据：最高人民检察院、国家监察委员会、教育部、公安部、民政部、司法部、
+// 国家卫健委、团中央、全国妇联《关于建立侵害未成年人案件强制报告制度的意见（试行）》
+// （高检发〔2020〕9号，2020年5月7日印发）。仅供辅助提示，具体以法规原文为准。
+const MANDATORY_REPORT = {
+  title: '法定强制报告义务',
+  legal: '依据最高检等九部门《关于建立侵害未成年人案件强制报告制度的意见（试行）》（高检发〔2020〕9号）',
+  who: '社会工作服务机构、学校/幼儿园、医疗机构、儿童福利与救助机构、居（村）委会等密切接触未成年人的组织及其从业人员，均为法定报告主体。',
+  when: '在工作中发现未成年人遭受或疑似遭受不法侵害、或面临不法侵害危险的，应当【立即】向公安机关报案或举报（110），同时按主管行政机关要求报告备案。',
+  situations: [
+    '生殖器官或隐私部位遭受 / 疑似遭受非正常损伤',
+    '不满 14 周岁女性未成年人遭受 / 疑似遭受性侵害、怀孕、流产',
+    '14 周岁以上女性未成年人遭受 / 疑似遭受性侵害所致怀孕、流产',
+    '身体多处损伤、严重营养不良、意识不清，疑似家暴 / 欺凌 / 虐待 / 殴打 / 被麻醉',
+    '因自杀、自残、中毒、被麻醉、殴打等非正常原因导致伤残、死亡',
+    '被遗弃或长期处于无人照料状态',
+    '来源不明、失踪或被拐卖、收买',
+    '被组织乞讨',
+    '其他严重侵害未成年人身心健康的情形，或正在面临不法侵害危险'
+  ],
+  protect: '公安机关、检察院及主管机关应对报案人信息予以保密；因依法报告引发纠纷的，报告人不承担相应法律责任；阻碍、干扰报告的将被追责。',
+  liability: '负有报告义务的单位及人员未履行职责、造成严重后果的，依法给予处分；构成犯罪的，依法追究刑事责任。',
+  note: '本提示仅供辅助参考，请以法律法规原文及当地主管部门要求为准。'
+};
+
+// ---------- 权威量表 ----------
+const SCALES = {
+  cssrs: {
+    id: 'cssrs',
+    name: 'C-SSRS 简版 · 自杀风险筛查',
+    source: '哥伦比亚自杀严重程度评定量表（筛查版）· 公开卫生服务版本',
+    desc: '递进式询问自杀意念与行为，任一“是”均需进一步评估。',
+    type: 'yesno',
+    items: [
+      '过去1个月，是否觉得活着没意思，或希望自己睡过去不要再醒来？',
+      '过去1个月，是否真的想过要结束自己的生命？',
+      '是否想过可能会用什么方式结束生命？',
+      '是否有意图真的按所想的方式去做？',
+      '是否已经开始准备，或做过一些准备动作？'
+    ],
+    // 计分：统计“是”的数量与位置，定位最高风险等级
+    score(ans) {
+      const yes = ans.map((v, i) => v === 1 ? i + 1 : 0).filter(Boolean);
+      const top = yes.length ? Math.max(...yes) : 0;
+      let level = 4, label = '未见筛查阳性', advice = '当前筛查未见明确自杀风险信号，保持观察与心理支持。', risk = 4;
+      if (top >= 4) { level = 1; label = '高危 · 立即干预'; advice = '存在意图或准备行为，属高危：立即专人陪护、移除致命手段、当天转介紧急评估或拨打120/110。'; risk = 1; }
+      else if (top === 3) { level = 2; label = '中高危 · 尽快评估'; advice = '已有具体方式设想，需尽快安排专业评估，制定安全计划并通知支持系统。'; risk = 2; }
+      else if (top === 2) { level = 2; label = '阳性 · 需进一步评估'; advice = '明确想过结束生命，需进一步了解频率、强度与是否计划，勿让其独处。'; risk = 2; }
+      else if (top === 1) { level = 3; label = '轻度阳性 · 关注'; advice = '有被动死亡念头，建议倾听、心理支持并持续观察，必要时进一步筛查。'; risk = 3; }
+      return { score: `${yes.length}/${ans.length}`, level, label, advice, risk };
+    }
+  },
+  asq: {
+    id: 'asq',
+    name: 'ASQ · 自杀筛查四问',
+    source: 'Ask Suicide-Screening Questions · 美国国立精神卫生研究所(NIMH)',
+    desc: '简短四问快速识别自杀风险，任一项“是”即需进一步评估。',
+    type: 'yesno',
+    items: [
+      '最近几周，你是否想过要伤害自己或结束生命？',
+      '最近几周，你是否觉得没有希望？',
+      '最近几周，你是否想过如何伤害自己？',
+      '最近几周，你是否担心自己可能会伤害自己？'
+    ],
+    score(ans) {
+      const n = ans.filter(v => v === 1).length;
+      if (n >= 1) return { score: `${n}/4 项“是”`, level: 2, label: '筛查阳性 · 需进一步评估', advice: '任一项为“是”即为阳性：立即进行简明自杀风险评估，确认紧迫性并安排相应处置。', risk: 2 };
+      return { score: '0/4 项“是”', level: 4, label: '筛查阴性', advice: '当前四问均为“否”，自杀风险信号不明显，保持常规观察与支持。', risk: 4 };
+    }
+  },
+  phq9: {
+    id: 'phq9',
+    name: 'PHQ-9 · 抑郁症状筛查',
+    source: 'Patient Health Questionnaire-9 · 公共领域，广泛用于筛查与严重程度评估',
+    desc: '评估过去两周抑郁症状；第9题阳性直接提示自伤风险，须优先处置。',
+    type: 'freq',
+    options: ['完全没有(0)', '有几天(1)', '一半以上天数(2)', '几乎每天(3)'],
+    items: [
+      '做事提不起劲或没有兴趣',
+      '感到心情低落、沮丧或绝望',
+      '入睡困难、睡不安稳，或睡得太多',
+      '感到疲倦或没有活力',
+      '食欲不振或吃太多',
+      '觉得自己很糟，或觉得自己很失败，让自己或家人失望',
+      '对事物专注有困难，例如阅读或看电视时',
+      '动作或说话速度明显变慢，或相反地烦躁、坐立不安',
+      '有不如死掉或用某种方式伤害自己的念头'
+    ],
+    score(ans) {
+      const total = ans.reduce((a, b) => a + b, 0);
+      const q9 = ans[8] || 0;
+      let level = 4, label = '极轻度', advice = '抑郁症状很轻，保持关注与支持即可。', risk = 4;
+      if (total >= 20) { level = 1; label = '重度抑郁症状'; advice = '提示重度抑郁，尽快转介精神科评估治疗；结合临床访谈判断自杀风险。'; risk = 1; }
+      else if (total >= 15) { level = 2; label = '中重度抑郁症状'; advice = '建议转介专业评估与治疗，制定安全计划并密切随访。'; risk = 2; }
+      else if (total >= 10) { level = 2; label = '中度抑郁症状'; advice = '建议进一步评估，提供心理支持并安排随访。'; risk = 3; }
+      else if (total >= 5) { level = 3; label = '轻度抑郁症状'; advice = '轻度症状，可予心理支持、行为激活并观察变化。'; risk = 4; }
+      if (q9 > 0) { level = 1; label += ' · 自伤风险'; advice = '第9题阳性（出现伤害自己念头），无论总分高低，均须立即进行自杀风险评估并按紧急流程处置。'; risk = 1; }
+      return { score: `${total}/27 分 · 第9题 ${q9} 分`, level, label, advice, risk };
+    }
+  },
+  gad7: {
+    id: 'gad7',
+    name: 'GAD-7 · 焦虑症状筛查',
+    source: 'Generalized Anxiety Disorder-7 · 公共领域',
+    desc: '评估过去两周焦虑症状严重程度，辅助判断惊恐/应激反应。',
+    type: 'freq',
+    options: ['完全没有(0)', '有几天(1)', '一半以上天数(2)', '几乎每天(3)'],
+    items: [
+      '感到紧张、焦虑或急切',
+      '不能够停止或控制担忧',
+      '对各种各样的事情担忧过多',
+      '很难放松下来',
+      '由于不安而无法静坐',
+      '变得容易烦恼或急躁',
+      '感到似乎将有可怕的事情发生'
+    ],
+    score(ans) {
+      const total = ans.reduce((a, b) => a + b, 0);
+      let level = 4, label = '极轻度焦虑', advice = '焦虑症状很轻，保持支持与观察。', risk = 4;
+      if (total >= 15) { level = 2; label = '重度焦虑症状'; advice = '提示重度焦虑，建议尽快转介专业评估与治疗。'; risk = 2; }
+      else if (total >= 10) { level = 3; label = '中度焦虑症状'; advice = '建议进一步评估，教授放松训练并安排随访。'; risk = 3; }
+      else if (total >= 5) { level = 4; label = '轻度焦虑症状'; advice = '轻度症状，可予心理支持与放松技巧指导。'; risk = 4; }
+      return { score: `${total}/21 分`, level, label, advice, risk };
+    }
+  }
+};
+
+// ---------- 安全计划六步法（Stanley-Brown）模板 ----------
+const SAFETY_PLAN = [
+  { n: 1, t: '识别预警信号', hint: '情绪、想法、行为、躯体上，危机来临前的个人信号是什么？' },
+  { n: 2, t: '内部应对策略', hint: '独自一人时可做的、能分散注意力的事情（散步、听音乐、洗澡等）' },
+  { n: 3, t: '可分散注意的人与场所', hint: '能让你“换个脑子”的人和地方（不一定要谈危机）' },
+  { n: 4, t: '可以求助的人', hint: '愿意倾听、能陪伴的亲友，写清姓名与电话' },
+  { n: 5, t: '可联系的专业资源', hint: '咨询师、医生、机构、热线（12356 等）与医院信息' },
+  { n: 6, t: '让环境更安全', hint: '如何限制药物、利器、高处等致命手段的可及性' }
+];
+
+const DISCLAIMER = '本工具为一线社工/心理咨询工作者的辅助参考，基于公开权威资料整理，不构成医疗诊断或法律意见，也不能替代紧急救援。遇即时人身危险请立即拨打 110 / 120；心理危机可拨打全国心理援助热线 12356。请结合机构规范与专业督导使用。';
+
+// ---------- 版本与制作者信息 ----------
+const APP_META = {
+  version: 'v1.4.7',
+  date: '2026-11-16',
+  // 联系方式由 build.py 在打包时注入：本地版读 contact.txt（不入库）填真实号码；
+  // --public 版留空，页面自动改显 GitHub 引导。源码本身不含真实电话，避免公开仓库被爬虫抓取。
+  author: { name: '徐小东', phone: '', wechat: '' },
+  // 只保留里程碑大版本；中间的补丁版本不再逐条列出，避免列表过长。
+  changes: [
+    { v: 'v1.4.7', d: '完成微信/QQ 等内置浏览器的屏幕适配：正文、悬浮按钮、弹窗面板均能正确铺满、字号清晰' },
+    { v: 'v1.4.1', d: '新增「未成年人遭侵害 / 性侵」场景与法定强制报告制度提示（九类须报告情形、报告主体、免责与责任）' },
+    { v: 'v1.4.0', d: '重构屏幕适配为能力检测，不再逐个浏览器打补丁，通用性更好' },
+    { v: 'v1.3.3', d: '新增深色模式，可跟随系统或手动切换' },
+    { v: 'v1.1.0', d: '新增本地热线与转诊机构、结果页转诊板块，并支持微信发送的单文件' },
+    { v: 'v1.0.0', d: '首发：危机场景、处置步骤、沟通话术、风险量表、安全计划' }
+  ]
+};
+
+// ---------- 与心理急救 PFA 的对应关系 ----------
+const PFA_MAP = {
+  intro: '心理急救（Psychological First Aid, PFA）是面向危机当事人的**人道、支持性、实务性**支持，WHO 概括为 Look（观察）—Listen（倾听）—Link（连接）三原则，核心精神是陪伴、稳定、连接、不侵入、不诊断。本工具以 PFA 为底层框架，叠加了面向一线社工的危机分流与转介功能。',
+  pfaRows: [
+    { tool: '确保现场安全、不让他独处、移除危险物', pfa: '安全与安适 · Look（观察）' },
+    { tool: '倾听共情话术，不评判、不劝说、不强迫倾诉', pfa: '接触与建立关系 · Listen（倾听）' },
+    { tool: '5-4-3-2-1 着陆、腹式呼吸等稳定化技术', pfa: '帮助平复情绪 · 稳定化' },
+    { tool: '联系亲友、协助接入支持系统', pfa: '连接社会支持 · Link（连接）' },
+    { tool: '热线、本地机构、转诊板块', pfa: '转介协同服务 · Link（连接）' },
+    { tool: '「这会过去」等正常化心理教育', pfa: '应对信息 · 心理教育' }
+  ],
+  beyondRows: [
+    { tool: 'C-SSRS / PHQ-9 / GAD-7 量表计分', pfa: 'PFA 不做正式评估/诊断；此处属风险筛查与分流', kind: 'beyond' },
+    { tool: '风险四级分级判定', pfa: '属危机分流（triage），非 PFA 核心行动', kind: 'beyond' },
+    { tool: 'Stanley-Brown 安全计划六步', pfa: '循证自杀预防干预，与 PFA 配合使用', kind: 'beyond' },
+    { tool: '强制报告 / 人身安全保护令', pfa: '属法定保护程序，不是 PFA', kind: 'not' },
+    { tool: 'Roberts 七阶段 / Gilliland 六步危机干预', pfa: '另一套危机干预模型，与 PFA 并列', kind: 'not' }
+  ],
+  wording: {
+    good: '以心理急救（PFA）为底层框架，整合危机干预、风险筛查分流与转介的一线应急辅助工具',
+    bad: '这是一个 PFA 工具（不够准确：混入了评估、分级与干预）'
+  },
+  note: '量表结果只能作为分流参考，不能当作诊断。这是 PFA 刻意不做的事，但面向专业社工做筛查与分流是职责所在——关键是守住「筛查 ≠ 诊断」的边界。'
+};
+
+// ---------- 版权与使用声明 ----------
+const COPYRIGHT = {
+  title: '📄 版权与使用声明',
+  lines: [
+    `© 2026 ${APP_META.author.name}${/^__/.test(APP_META.author.phone) ? '' : `（${APP_META.author.phone}，微信同号）`}。本工具免费提供，<b>欢迎复制、转发、分享</b>给有需要的一线工作者与机构使用。`,
+    '工具中的量表（C-SSRS、PHQ-9、GAD-7 等）版权归各自原作者所有，本工具仅为引用与整理，并未主张其著作权。危机干预框架依据 WHO、NCTSN 等公开资料整理。',
+    '若你根据实际需要对内容做了<b>修改或本地化</b>，欢迎把改动反馈给制作者——便于汇总改进、发布更完善的版本，让更多人受益。这不是强制要求，只是善意邀请。',
+    '请勿以原作者名义发布你的修改版本；<b>任何自行修改所产生的后果，由修改者自行承担</b>，与原作者无关。',
+    '本工具仅供辅助参考，不构成医疗诊断或法律意见，详见免责声明。'
+  ]
+};
+
+/* ===== local-data.js ===== */
+/* ============================================================
+ * 本地热线库 + 转诊资源库
+ * 数据来源：国家卫健委、各地精神卫生中心、公开热线整理（2025-2026）
+ * 说明：号码可能随时间调整，使用前请以当地官方公布为准。
+ * ============================================================ */
+
+// ---------- 全国通用专线 ----------
+const NATIONAL_LINES = [
+  { name: '全国统一心理援助热线', num: '12356', note: '24小时 · 各地拨打接当地', icon: '💚', type: 'psy' },
+  { name: '青少年服务热线', num: '12355', note: '青少年心理与权益', icon: '🧒', type: 'youth' },
+  { name: '妇女维权热线', num: '12338', note: '妇女儿童权益 / 家暴', icon: '⚖️', type: 'legal' },
+  { name: '法律援助热线', num: '12348', note: '法律咨询与援助', icon: '📖', type: 'legal' },
+  { name: '卫生健康热线', num: '12320', note: '健康咨询 / 部分地区转心理', icon: '🏥', type: 'medical' }
+];
+
+// ---------- 各省份本地心理热线 + 精神卫生中心（转诊机构）----------
+// hotline: 本地心理援助/危机干预热线；center: 省级精神卫生中心/专科医院（转诊用）
+const PROVINCES = {
+  '北京': { hotlines: [
+      { name: '北京市心理援助热线', num: '010-82951332', note: '24h · 北京回龙观医院', icon: '💚', type: 'psy' },
+      { name: '北京安定医院咨询热线', num: '010-58303286', note: '心理咨询', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '北京回龙观医院', num: '010-62715511', note: '市精神卫生中心 · 精神科急诊' }, { name: '北京安定医院', num: '010-58303000', note: '精神疾病专科诊疗' } ] },
+  '上海': { hotlines: [
+      { name: '上海市心理热线', num: '021-962525', note: '24h · 上海市精神卫生中心', icon: '💚', type: 'psy' },
+      { name: '希望24热线', num: '400-161-9995', note: '24h 心理危机干预', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '上海市精神卫生中心', num: '021-64387250', note: '专科诊疗 · 急诊' } ] },
+  '天津': { hotlines: [
+      { name: '天津市心理援助热线', num: '022-12356', note: '天津市安定医院', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '天津市安定医院', num: '022-88188858', note: '市精神卫生中心' } ] },
+  '广东': { hotlines: [
+      { name: '广州市心理援助热线', num: '020-81899120', note: '24h · 广州医科大学附属脑科医院', icon: '💚', type: 'psy' },
+      { name: '深圳市心理危机干预热线', num: '0755-12356', note: '深圳市康宁医院', icon: '💚', type: 'psy' },
+      { name: '珠海市心理援助热线', num: '0756-8120120', note: '珠海市第三人民医院', icon: '💚', type: 'psy' },
+      { name: '汕头市心理援助热线', num: '0754-87271333', note: '汕头大学精神卫生中心', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '广东省人民医院精神卫生中心', num: '020-83827812', note: '精神科诊疗' }, { name: '广州医科大学附属脑科医院', num: '020-81289120', note: '精神疾病专科' } ] },
+  '浙江': { hotlines: [
+      { name: '浙江省统一心理援助热线', num: '96525', note: '24h', icon: '💚', type: 'psy' },
+      { name: '杭州市心理危机热线', num: '0571-85029595', note: '24h · 杭州市第七人民医院', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '浙江省人民医院精神卫生科', num: '0571-85893000', note: '精神科诊疗' }, { name: '杭州市第七人民医院', num: '0571-85129501', note: '市精神卫生中心' } ] },
+  '江苏': { hotlines: [
+      { name: '江苏省心理危机干预热线', num: '025-83712977', note: '24h · 南京脑科医院', icon: '💚', type: 'psy' },
+      { name: '陶老师热线（青少年）', num: '025-96111', note: '24h · 南京市教育局', icon: '🧒', type: 'youth' }
+    ], centers: [ { name: '南京脑科医院', num: '025-83719966', note: '省精神卫生中心' } ] },
+  '四川': { hotlines: [
+      { name: '四川省心理援助热线', num: '96111', note: '24h', icon: '💚', type: 'psy' },
+      { name: '成都市心理援助热线', num: '028-87577510', note: '24h · 成都市第四人民医院', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '四川大学华西医院心理卫生中心', num: '028-85501293', note: '精神科专科诊疗' }, { name: '成都市第四人民医院', num: '028-69515798', note: '成都市精神卫生中心 · 24h急诊；咨询预约 028-87522430' }, { name: '绵阳市第三人民医院', num: '0816-2282249', note: '四川省精神卫生中心 · 精神科诊疗' } ] },
+  '重庆': { hotlines: [
+      { name: '重庆市心理援助热线', num: '023-96320-1', note: '24h', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '重庆市精神卫生中心', num: '023-67500120', note: '精神科诊疗 · 急诊' } ] },
+  '湖北': { hotlines: [
+      { name: '武汉心心语心理援助热线', num: '027-85844666', note: '武汉市精神卫生中心', icon: '💚', type: 'psy' },
+      { name: '华中师范大学心理援助热线', num: '400-967-8920', note: '8:00-24:00', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '武汉市精神卫生中心', num: '027-85844666', note: '精神科诊疗' } ] },
+  '山东': { hotlines: [
+      { name: '山东省精神卫生中心热线', num: '0531-86336666', note: '24h', icon: '💚', type: 'psy' },
+      { name: '青岛市心理援助热线', num: '0532-85669120', note: '青岛市精神卫生中心', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '山东省精神卫生中心', num: '0531-86336666', note: '省级专科诊疗' }, { name: '青岛市精神卫生中心', num: '0532-86669005', note: '精神科 · 双向转诊 86669005' } ] },
+  '河南': { hotlines: [
+      { name: '河南省心理援助热线', num: '0373-7095888', note: '24h', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '河南省精神卫生中心', num: '0373-7095888', note: '精神科诊疗' } ] },
+  '河北': { hotlines: [
+      { name: '河北省心理援助热线', num: '0312-96312', note: '24h', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '河北省精神卫生中心', num: '0312-5970111', note: '精神科诊疗' } ] },
+  '湖南': { hotlines: [
+      { name: '湖南省心理健康服务热线', num: '0731-85292999', note: '24h', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '湖南省脑科医院', num: '0731-85292120', note: '省精神卫生中心' } ] },
+  '安徽': { hotlines: [
+      { name: '安徽省心理危机干预热线', num: '0551-63666903', note: '24h · 合肥市第四人民医院', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '合肥市第四人民医院', num: '0551-63666903', note: '省精神卫生中心' } ] },
+  '福建': { hotlines: [
+      { name: '福建省心理援助热线', num: '0591-85666661', note: '24h', icon: '💚', type: 'psy' },
+      { name: '厦门市心理援助热线', num: '0592-5395159', note: '24h · 厦门市仙岳医院', icon: '💚', type: 'psy' },
+      { name: '泉州市心理援助热线', num: '0595-27550809', note: '24h', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '福建省福州神经精神病防治院', num: '0591-85666661', note: '精神科诊疗' }, { name: '厦门市仙岳医院', num: '0592-5395159', note: '市精神卫生中心' } ] },
+  '江西': { hotlines: [
+      { name: '江西省社会心理服务热线', num: '0791-966525', note: '24h', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '江西省精神病院', num: '0791-88330120', note: '省精神卫生中心 · 心理热线；咨询 0791-88176163' } ] },
+  '辽宁': { hotlines: [
+      { name: '辽宁省心理援助热线', num: '024-96687', note: '24h · 省精神卫生中心', icon: '💚', type: 'psy' },
+      { name: '沈阳市心理援助热线', num: '024-23813000', note: '24h', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '辽宁省精神卫生中心', num: '024-73377120', note: '精神科诊疗' } ] },
+  '吉林': { hotlines: [
+      { name: '长春市心理援助热线', num: '0431-89685000', note: '24h · 长春市第六医院', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '长春市第六医院', num: '0431-89685000', note: '市精神卫生中心' } ] },
+  '黑龙江': { hotlines: [
+      { name: '哈尔滨市心理援助热线', num: '0451-82480130', note: '24h · 哈尔滨市第一专科医院', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '哈尔滨市第一专科医院', num: '0451-82480130', note: '精神科诊疗' } ] },
+  '山西': { hotlines: [
+      { name: '山西省心理援助热线', num: '0351-8726199', note: '24h', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '山西省精神卫生中心', num: '0351-8726199', note: '精神科诊疗' } ] },
+  '陕西': { hotlines: [
+      { name: '西安市精神卫生中心热线', num: '400-896-0960', note: '24h', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '陕西省精神卫生中心', num: '029-63609288', note: '精神科诊疗' }, { name: '西安市精神卫生中心', num: '400-896-0960', note: '精神科诊疗' } ] },
+  '广西': { hotlines: [
+      { name: '广西心理援助热线', num: '0772-3136120', note: '24h', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '广西壮族自治区脑科医院', num: '0772-3136120', note: '精神科诊疗' } ] },
+  '海南': { hotlines: [
+      { name: '海南省心理援助热线', num: '0898-96363', note: '24h', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '海南省安宁医院', num: '0898-66989120', note: '省精神卫生中心' } ] },
+  '贵州': { hotlines: [
+      { name: '贵州省心理援助热线', num: '0851-88417888', note: '24h', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '贵州省第二人民医院', num: '0851-88417888', note: '精神科诊疗' } ] },
+  '云南': { hotlines: [
+      { name: '昆明市心理援助热线', num: '0871-65011111', note: '24h', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '云南省精神卫生中心', num: '0871-65011111', note: '精神科诊疗' } ] },
+  '甘肃': { hotlines: [
+      { name: '兰州市心理援助热线', num: '0931-4638858', note: '兰州市第三人民医院', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '兰州市第三人民医院', num: '0931-4638858', note: '精神科诊疗' } ] },
+  '青海': { hotlines: [
+      { name: '青海省心理咨询热线', num: '0971-8140371', note: '青海省第三人民医院', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '青海省第三人民医院', num: '0971-8140371', note: '精神科诊疗' } ] },
+  '宁夏': { hotlines: [
+      { name: '宁夏心理援助热线', num: '0951-2160707', note: '24h', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '宁夏回族自治区精神卫生中心', num: '0951-2160707', note: '精神科诊疗' } ] },
+  '新疆': { hotlines: [
+      { name: '新疆心理援助热线', num: '0991-3016111', note: '24h', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '新疆维吾尔自治区精神卫生中心', num: '0991-3016111', note: '精神科诊疗' } ] },
+  '内蒙古': { hotlines: [
+      { name: '内蒙古心理援助热线', num: '0471-12320转5', note: '24h · 区精神卫生中心', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '内蒙古自治区精神卫生中心', num: '0471-4393531', note: '精神科诊疗 · 院办电话' } ] },
+  '西藏': { hotlines: [
+      { name: '西藏自治区心理咨询热线', num: '0891-12320', note: '卫生健康热线转心理', icon: '💚', type: 'psy' }
+    ], centers: [ { name: '西藏自治区精神卫生中心', num: '0891-12320', note: '精神科诊疗（以当地为准）' } ] }
+};
+
+// 省份别名归一化（定位反查可能带“省/市/自治区/特别行政区”等后缀）
+const PROVINCE_ALIAS = {
+  '北京市':'北京','天津市':'天津','上海市':'上海','重庆市':'重庆',
+  '河北省':'河北','山西省':'山西','辽宁省':'辽宁','吉林省':'吉林','黑龙江省':'黑龙江',
+  '江苏省':'江苏','浙江省':'浙江','安徽省':'安徽','福建省':'福建','江西省':'江西','山东省':'山东',
+  '河南省':'河南','湖北省':'湖北','湖南省':'湖南','广东省':'广东','海南省':'海南',
+  '四川省':'四川','贵州省':'贵州','云南省':'云南','陕西省':'陕西','甘肃省':'甘肃','青海省':'青海',
+  '内蒙古自治区':'内蒙古','广西壮族自治区':'广西','西藏自治区':'西藏',
+  '宁夏回族自治区':'宁夏','新疆维吾尔自治区':'新疆',
+  '香港特别行政区':'香港','澳门特别行政区':'澳门','台湾省':'台湾'
+};
+
+// ---------- 转诊知识：需要转诊断时联系谁 ----------
+const REFERRAL = {
+  // 上转指征（摘自精神卫生医联体双向转诊标准，公开资料整理）
+  indications: [
+    '出现明显幻觉、妄想、兴奋躁动、思维紊乱等精神疾病发作期症状',
+    '有暴力攻击、明显自伤或自杀行为',
+    '疑似精神疾病、诊断不明确，需要专科评估确诊',
+    '服药后出现急性毒副反应',
+    '治疗效果不佳或属疑难病例，基层/综合医院难以处理',
+    '本人或家属要求到精神专科门诊或住院治疗'
+  ],
+  // 转去哪里 / 找谁
+  destinations: [
+    { icon: '🏥', t: '精神专科医院 / 精神卫生中心', d: '诊断不明确、需专科确诊或住院时，转至当地精神卫生中心或精神专科医院（见下方“本地转诊机构”，可一键拨打）。' },
+    { icon: '🩺', t: '综合医院精神科 / 心理科 / 睡眠门诊', d: '2025 年起国家卫健委推动每个地市至少一家医院开设心理/睡眠门诊，可先在此初筛评估，再按需上转。' },
+    { icon: '🚑', t: '急诊（120）', d: '正在发生的自伤自杀、暴力冲动、药物过量或意识改变，立即拨打 120 或送最近医院急诊。' },
+    { icon: '📞', t: '12356 心理援助热线', d: '24 小时热线可评估风险、提供情绪支持，并协助对接当地精神卫生资源与转介路径。' },
+    { icon: '🤝', t: '转介协助方', d: '社区精防网络、精神卫生医联体双向转诊绿色通道、机构督导，可协助联系与陪同转诊。' }
+  ],
+  // 转诊流程
+  process: [
+    '评估与告知：说明转诊原因，遵循知情同意，尊重本人及家属选择',
+    '准备材料：身份证/医保、既往病历与用药记录、危机与评估记录',
+    '联系接收方：先电话确认专科门诊/急诊与绿色通道，必要时开转诊单',
+    '安全陪同：高风险者由家属/社工陪同前往，途中不离开视线，移除危险物品',
+    '交接与随访：移交病历与评估信息，48 小时内回访，跟进就诊与用药情况'
+  ],
+  note: '出现暴力、攻击、自伤或“肇事肇祸”倾向时，可联系辖区派出所（110）协助转诊。各机构号码可能调整，请以当地官方公布为准。'
+};
+
+/* ===== app.js ===== */
+/* ============================================================
+ * 安心护航 · 交互逻辑
+ * ============================================================ */
+
+let state = {
+  scenario: null,     // 当前场景对象
+  selected: new Set(),// 选中的情况 id
+  result: null        // 生成结果 { level, scoreSources, ... }
+};
+
+const $ = id => document.getElementById(id);
+
+/* ---------- 初始化 ---------- */
+function init() {
+  // 场景卡片
+  $('sceneGrid').innerHTML = SCENARIOS.map(s => `
+    <div class="scene-card" onclick="openScenario('${s.id}')">
+      <div class="scene-ico" style="background:linear-gradient(135deg,${s.grad[0]},${s.grad[1]})">${s.icon}</div>
+      <div class="scene-txt"><h3>${s.name}</h3><p>${s.desc}</p></div>
+      <span class="scene-arrow">›</span>
+    </div>`).join('');
+  const hasContact = !/^__/.test(APP_META.author.phone) && !!APP_META.author.phone;
+  const footContact = hasContact
+    ? `获取最新版本 / 反馈建议：<a href="tel:${APP_META.author.phone}">${APP_META.author.phone}</a>（微信同号）`
+    : `获取最新版本 / 反馈建议：见 GitHub 仓库`;
+  $('homeFoot').innerHTML = `
+    <button class="about-entry" onclick="showPage('about')">ℹ️ 关于本工具 · PFA 说明 · 版本与联系<span class="ae-arrow">›</span></button>
+    <div class="foot-author">制作者：${APP_META.author.name} · ${footContact}</div>
+    <div class="foot-ver">${APP_META.version} · 更新于 ${APP_META.date}</div>
+    <div style="margin-top:10px">${DISCLAIMER}</div>`;
+  $('resultDisclaimer').textContent = DISCLAIMER;
+  $('resultMeta').textContent = hasContact
+    ? `安心护航 ${APP_META.version} · 制作者 ${APP_META.author.name} ${APP_META.author.phone}（微信同号） · 更新于 ${APP_META.date}`
+    : `安心护航 ${APP_META.version} · 制作者 ${APP_META.author.name} · 更新于 ${APP_META.date}`;
+  renderAbout();
+  // 填充省份下拉
+  const provs = Object.keys(PROVINCES);
+  $('provinceSel').innerHTML = '<option value="">— 请选择 —</option>' +
+    provs.map(p => `<option value="${p}">${p}</option>`).join('');
+  // 恢复上次选择的省份
+  try {
+    const last = localStorage.getItem('last_province');
+    if (last && PROVINCES[last]) { $('provinceSel').value = last; renderLocal(last); }
+  } catch (e) {}
+  applyTheme();
+  applyZoom();
+}
+
+/* ---------- 页面切换 ---------- */
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  $('page-' + id).classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'instant' });
+}
+
+/* ---------- 关于本工具 / 版本 / 联系方式 ---------- */
+function renderAbout() {
+  const m = APP_META;
+  $('aboutHero').innerHTML = `
+    <span class="ver-badge">ℹ️ 版本与说明</span>
+    <h2>安心护航</h2>
+    <p>心理危机应急处置辅助系统 · 以 PFA 为底层框架</p>
+    <div class="ver-info">
+      <div class="ver-chip">当前版本<b>${m.version}</b></div>
+      <div class="ver-chip">更新日期<b>${m.date}</b></div>
+    </div>`;
+
+  const hasContact = !/^__/.test(m.author.phone) && !!m.author.phone;
+  $('aboutContact').innerHTML = hasContact ? `
+    <div class="cc-h">📱 联系制作者 ${m.author.name} · 获取最新版本</div>
+    <div class="cc-sub">工具通过微信传播，若你手上是旧版本，或有问题与建议，欢迎联系制作者 ${m.author.name}。</div>
+    <div class="contact-row">
+      <div class="cr-ico">📞</div>
+      <div class="cr-tx"><div class="lb">电话（点按拨打）</div><div class="val">${m.author.phone}</div></div>
+      <button class="cr-btn" onclick="call('${m.author.phone}')">拨打</button>
+    </div>
+    <div class="contact-row">
+      <div class="cr-ico">💬</div>
+      <div class="cr-tx"><div class="lb">微信号（点按复制）</div><div class="val">${m.author.wechat}</div></div>
+      <button class="cr-btn alt" onclick="copyText('${m.author.wechat}')">复制</button>
+    </div>` : `
+    <div class="cc-h">📱 获取最新版本 · 反馈建议</div>
+    <div class="cc-sub">本版本未内置制作者联系方式。若你手上是旧版本，或有问题与建议，可到项目的 GitHub 仓库查看更新、留言反馈。</div>
+    <div class="contact-row">
+      <div class="cr-ico">💻</div>
+      <div class="cr-tx"><div class="lb">项目仓库（GitHub）</div><div class="val" style="word-break:break-all;font-size:12px">github.com/chinlone/crisis-helper</div></div>
+      <button class="cr-btn alt" onclick="copyText('https://github.com/chinlone/crisis-helper')">复制</button>
+    </div>`;
+
+  const P = PFA_MAP;
+  const yes = r => `<tr><td class="c1">${r.tool}</td><td class="c2">${r.pfa}</td></tr>`;
+  const other = r => {
+    const tag = r.kind === 'not'
+      ? '<span class="tag-pill tag-not">非 PFA</span>'
+      : '<span class="tag-pill tag-beyond">超出</span>';
+    return `<tr><td class="c1">${tag}${r.tool}</td><td class="c2">${r.pfa}</td></tr>`;
+  };
+  $('aboutPfa').innerHTML = `
+    <h3>🩺 与心理急救（PFA）的关系</h3>
+    <p>${P.intro.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')}</p>
+    <table class="pfa-tbl">
+      <thead><tr><th>本工具模块</th><th>对应 PFA 核心行动</th></tr></thead>
+      <tbody>${P.pfaRows.map(yes).join('')}</tbody>
+    </table>
+    <p style="margin-top:13px;font-size:12px;font-weight:800;color:var(--ink)">以下部分超出或不属于 PFA，但面向专业工作者是合理的：</p>
+    <table class="pfa-tbl"><tbody>${P.beyondRows.map(other).join('')}</tbody></table>
+    <div class="hint" style="margin-top:12px">⚠️ ${P.note}</div>`;
+
+  $('aboutWording').innerHTML = `
+    <h3>✍️ 对外怎么表述更准确</h3>
+    <div class="wording-good"><b>✓ 推荐：</b>${P.wording.good}</div>
+    <div class="wording-bad"><b>✕ 不建议：</b>${P.wording.bad}</div>`;
+
+  $('aboutCopyright').innerHTML = `
+    <h3>${COPYRIGHT.title}</h3>
+    ${COPYRIGHT.lines.map((l, i) => `<p style="padding-left:18px;position:relative"><span style="position:absolute;left:0;color:var(--teal);font-weight:800">${i + 1}.</span>${l}</p>`).join('')}`;
+
+  const MR = MANDATORY_REPORT;
+  $('aboutMandatory').innerHTML = `
+    <h3>⚖️ 侵害未成年人案件强制报告制度</h3>
+    <p><b>这是一项法定义务，不是可选项。</b>社会工作服务机构、学校/幼儿园、医疗机构、儿童福利与救助机构、居（村）委会等密切接触未成年人的组织及其从业人员，在工作中发现未成年人遭受或疑似遭受侵害、或面临侵害危险的，须立即向公安机关报案或举报。</p>
+    <div class="hint" style="margin:10px 0">${MR.legal}。</div>
+    <p style="font-weight:800;color:var(--ink);margin-top:12px">须立即报告的九类情形：</p>
+    <ol class="mc-list" style="margin-top:6px">${MR.situations.map(x => `<li>${x}</li>`).join('')}</ol>
+    <p style="margin-top:12px"><b>报告人受保护：</b>${MR.protect}</p>
+    <p><b>不报有责任：</b>${MR.liability}</p>
+    <p style="color:var(--muted);font-size:11.5px">${MR.note}</p>`;
+
+  $('aboutChanges').innerHTML = `
+    <h3>🕘 版本更新记录</h3>
+    ${m.changes.map(c => `<div class="chg-item"><span class="chg-v">${c.v}</span><span class="chg-d">${c.d}</span></div>`).join('')}`;
+
+  $('aboutFoot').innerHTML = `安心护航 ${m.version} · ${m.date}<br>${DISCLAIMER}`;
+}
+
+function copyText(text) {
+  const ok = () => toast('已复制微信号：' + text);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(ok).catch(() => fallbackCopy(text, ok));
+  } else { fallbackCopy(text, ok); }
+}
+function fallbackCopy(text, ok) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); ok(); } catch (e) { toast('请手动复制：' + text); }
+  document.body.removeChild(ta);
+}
+
+/* ---------- 打开某场景 ---------- */
+function openScenario(id) {
+  state.scenario = SCENARIOS.find(s => s.id === id);
+  state.selected.clear();
+  $('sitTitle').textContent = state.scenario.name;
+  const colors = { 1: 'var(--red)', 2: 'var(--orange)', 3: 'var(--amber)' };
+  $('chipGroup').innerHTML = state.scenario.chips.map(c => `
+    <div class="chip" data-id="${c.id}" onclick="toggleChip('${c.id}')">
+      <div class="chip-box"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></div>
+      <span class="chip-label">${c.t}</span>
+      <span class="lv-dot" style="background:${colors[c.lv] || 'var(--muted)'}" title="风险权重"></span>
+    </div>`).join('');
+  updateSelCount();
+  showPage('situation');
+}
+
+function toggleChip(id) {
+  if (state.selected.has(id)) state.selected.delete(id);
+  else state.selected.add(id);
+  const el = document.querySelector(`.chip[data-id="${id}"]`);
+  el.classList.toggle('sel', state.selected.has(id));
+  updateSelCount();
+}
+
+function updateSelCount() {
+  const n = state.selected.size;
+  $('selCount').textContent = n ? `已选 ${n} 项情况` : '请至少选择 1 项情况';
+  $('genBtn').disabled = n === 0;
+}
+
+/* ---------- 风险判定 ---------- */
+// 1紧急 2高危 3中危 4关注；等级数字越小越严重
+function computeLevel() {
+  const chips = state.scenario.chips.filter(c => state.selected.has(c.id));
+  if (!chips.length) return 4;
+  const minLv = Math.min(...chips.map(c => c.lv)); // 取最严重的那一项
+  return minLv;
+}
+
+/* ---------- 生成方案 ---------- */
+function generatePlan() {
+  const level = computeLevel();
+  const selectedTags = new Set();
+  state.scenario.chips.filter(c => state.selected.has(c.id)).forEach(c => c.tags.forEach(t => selectedTags.add(t)));
+  state.result = { level, selectedTags };
+  renderResult();
+  showPage('result');
+}
+
+/* ---------- 渲染结果 ---------- */
+function renderResult() {
+  const s = state.scenario;
+  const lv = RISK_LEVELS[state.result.level];
+  // 风险头图
+  $('riskHero').style.background = `linear-gradient(135deg,${s.grad[0]},${s.grad[1]})`;
+  $('riskHero').innerHTML = `
+    <div class="meta">${s.icon} ${s.name} · 应急方案</div>
+    <div class="row">
+      <div class="risk-ico">${lv.icon}</div>
+      <div class="risk-main"><h2>${lv.label}等级</h2><div class="lvline">建议处置优先级：${['','立即介入','当天处置','密切跟进','持续关注'][state.result.level]}</div></div>
+    </div>
+    <div class="risk-desc">${lv.desc}</div>`;
+
+  // 红色警示
+  if (state.result.level === 1) {
+    $('redAlert').style.display = 'flex';
+    $('redAlert').innerHTML = `<span class="i">🚨</span><span><b>高危警示：</b>${s.redNote}</span>`;
+  } else {
+    $('redAlert').style.display = 'none';
+  }
+
+  // 法定强制报告提示：涉未成年人侵害场景始终显示，不受风险等级影响
+  const needReport = s.mandatory === true || state.result.selectedTags.has('mandatory');
+  $('mandatoryBox').style.display = needReport ? 'block' : 'none';
+  if (needReport) renderMandatory();
+
+  // Tabs
+  const tabDefs = [
+    { key: 'steps', name: '⚡ 处置步骤' },
+    { key: 'scripts', name: '💬 沟通话术' },
+    { key: 'scales', name: '📊 风险评估' },
+    { key: 'referral', name: '🏥 转诊' },
+    { key: 'hotlines', name: '📞 援助热线' },
+    { key: 'safety', name: '🛡 安全计划' },
+    { key: 'hotels', name: '☎️ 热线汇总' }
+  ];
+  $('tabs').innerHTML = tabDefs.map((t, i) => `<div class="tab ${i === 0 ? 'on' : ''}" data-k="${t.key}" onclick="switchTab('${t.key}')">${t.name}</div>`).join('');
+  $('panels').innerHTML = tabDefs.map((t, i) => `<div class="panel ${i === 0 ? 'on' : ''}" data-k="${t.key}" id="panel-${t.key}"></div>`).join('');
+
+  renderSteps();
+  renderScripts();
+  renderScales();
+  renderReferral();
+  renderHotlines();
+  renderSafety();
+  renderAllHotlines();
+}
+
+/* ---------- 法定强制报告提示卡 ---------- */
+function renderMandatory() {
+  const m = MANDATORY_REPORT;
+  $('mandatoryBox').innerHTML = `
+    <div class="mandatory-card">
+      <div class="mc-top">
+        <span class="mc-badge">⚖️ 法律责任提示</span>
+        <span class="mc-title">${m.title}</span>
+      </div>
+      <div class="mc-call">
+        <div class="mc-call-h">🚨 发现即报，先报警再处置</div>
+        <div>立即拨打 <b>110</b> 报案或举报，同时按主管机关要求报告备案。不得内部消化、不得等待监护人同意、不得以“先观察”为由拖延。</div>
+      </div>
+      <div class="mc-sec"><div class="mc-h">👥 谁是报告主体</div><div class="mc-c">${m.who}</div></div>
+      <div class="mc-sec"><div class="mc-h">⏱ 报告时限与去向</div><div class="mc-c">${m.when}</div></div>
+      <div class="mc-sec"><div class="mc-h">📋 须立即报告的九类情形</div>
+        <ol class="mc-list">${m.situations.map(x => `<li>${x}</li>`).join('')}</ol>
+      </div>
+      <div class="mc-sec mc-good"><div class="mc-h">🛡 报告人保护与免责</div><div class="mc-c">${m.protect}</div></div>
+      <div class="mc-sec mc-warn"><div class="mc-h">⚠️ 不报告的责任</div><div class="mc-c">${m.liability}</div></div>
+      <div class="mc-legal">${m.legal}。${m.note}</div>
+    </div>`;
+}
+
+function switchTab(k) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.k === k));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('on', p.dataset.k === k));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ---------- 处置步骤 ---------- */
+function renderSteps() {
+  const tags = state.result.selectedTags;
+  let steps = state.scenario.steps.filter(st => st.tag === 'all' || tags.has(st.tag));
+  // 紧急等级时突出 p=0；否则全部显示
+  const prioColor = { 0: 'var(--red)', 1: 'var(--orange)', 2: 'var(--teal)' };
+  const prioText = { 0: '立即', 1: '尽快', 2: '跟进' };
+  const prioBg = { 0: 'var(--soft-red);color:var(--red)', 1: 'var(--soft-orange);color:var(--orange)', 2: 'var(--soft-teal);color:var(--teal-ink)' };
+  $('panel-steps').innerHTML = `
+    <div class="card">
+      <div class="script-h">📋 根据所选情况自动匹配的处置步骤（共 ${steps.length} 步）</div>
+      ${steps.map((st, i) => `
+        <div class="step-item">
+          <div class="step-n" style="background:${prioColor[st.p]}">${i + 1}</div>
+          <div class="step-body">
+            <h4>${st.t}<span class="prio-tag" style="background:${prioBg[st.p]}">${prioText[st.p]}</span></h4>
+            <p>${st.d}</p>
+          </div>
+        </div>`).join('')}
+    </div>
+    <div class="tip-card"><span class="i">🧭</span><span>以上步骤参照 <b>Roberts 七阶段危机干预模型</b>与 <b>Gilliland 六步法</b>：先确保安全与评估致命性，再建立关系、澄清问题、处理情绪、寻找资源、制定计划并随访。</span></div>`;
+}
+
+/* ---------- 沟通话术 ---------- */
+function renderScripts() {
+  const s = state.scenario;
+  $('panel-scripts').innerHTML = `
+    <div class="card">
+      <div class="script-block">
+        <div class="script-h" style="color:var(--ink-green)">✅ 推荐这样说</div>
+        ${s.doScripts.map(x => `<div class="script-line do-line">${x}</div>`).join('')}
+      </div>
+      <div class="script-block">
+        <div class="script-h" style="color:var(--red)">❌ 避免这样说</div>
+        ${s.dontScripts.map(x => `<div class="script-line dont-line">${x}</div>`).join('')}
+      </div>
+    </div>`;
+}
+
+/* ---------- 风险评估量表 ---------- */
+function renderScales() {
+  const s = state.scenario;
+  $('panel-scales').innerHTML = `
+    <div class="card">
+      <div class="script-h">📊 本场景推荐量表（可现场计分）</div>
+      ${s.scales.map(id => {
+        const sc = SCALES[id];
+        return `<div class="scale-item" onclick="openScale('${id}')">
+          <div class="sh"><div class="si">📋</div>
+            <div><h4>${sc.name}</h4><div class="src">${sc.desc}</div></div>
+            <span class="go">›</span></div></div>`;
+      }).join('')}
+    </div>
+    <div class="tip-card"><span class="i">ℹ️</span><span>量表结果会给出严重程度分级与处置建议，并与方案风险等级联动。<b>量表为筛查工具，不能替代临床诊断。</b></span></div>`;
+}
+
+/* ---------- 相关热线（情景化） ---------- */
+function renderHotlines() {
+  const s = state.scenario;
+  // 根据场景挑选相关热线
+  let ids;
+  if (s.id === 'child') ids = ['110', '120', '12355', '12338'];
+  else if (s.id === 'dv') ids = ['110', '12338', '12356', '120'];
+  else if (s.id === 'campus') ids = ['12355', '12356', '110', '12338'];
+  else if (s.id === 'suicide') ids = ['12356', '120', '110', '400-161-9995'];
+  else if (s.id === 'trauma') ids = ['120', '12356', '110'];
+  else ids = ['120', '12356', '110'];
+  const list = ids.map(n => HOTLINES.find(h => h.num === n)).filter(Boolean);
+  $('panel-hotlines').innerHTML = `
+    <div class="script-h" style="padding:2px 4px 10px">📞 本场景建议优先联系的热线</div>
+    ${list.map(h => hotlineCard(h)).join('')}`;
+}
+
+function renderAllHotlines() {
+  $('panel-hotels').innerHTML = `
+    <div class="script-h" style="padding:2px 4px 10px">☎️ 常用援助热线一览（点击拨打）</div>
+    ${HOTLINES.map(h => hotlineCard(h)).join('')}`;
+}
+
+function hotlineCard(h) {
+  return `<div class="hotline ${h.primary ? 'primary' : ''}">
+    <div class="hl-ico" style="background:${h.primary ? 'var(--grad-hot-2)' : 'var(--soft-teal)'}">${h.type === 'police' ? '👮' : h.type === 'medical' ? '🚑' : h.type === 'legal' ? '⚖️' : h.type === 'youth' ? '🧒' : '💚'}</div>
+    <div class="hl-txt"><h4>${h.name}</h4><div class="num">${h.num}</div><p>${h.note}</p></div>
+    <button class="hl-call ${h.type === 'police' || h.type === 'medical' ? 'red' : ''}" onclick="call('${h.num}')">拨打</button>
+  </div>`;
+}
+
+function call(num) {
+  window.location.href = 'tel:' + num;
+}
+
+/* ---------- 安全计划 ---------- */
+function renderSafety() {
+  $('panel-safety').innerHTML = `
+    <div class="card">
+      <div class="script-h">🛡 安全计划六步法（Stanley-Brown）<span class="sec-sub">可与当事人共同填写</span></div>
+      ${SAFETY_PLAN.map(p => `
+        <div class="sp-item">
+          <div class="sp-n">${p.n}</div>
+          <div class="sp-body"><h4>${p.t}</h4>
+            <textarea placeholder="${p.hint}"></textarea></div>
+        </div>`).join('')}
+      <div class="tip-card" style="margin-top:6px"><span class="i">💾</span><span>填写内容仅保存在本机浏览器，不会上传。建议完成后<b>打印或截图</b>交由当事人随身携带。</span></div>
+    </div>`;
+  // 恢复本地草稿
+  const key = 'safety_' + state.scenario.id;
+  try {
+    const saved = JSON.parse(localStorage.getItem(key) || '[]');
+    document.querySelectorAll('#panel-safety textarea').forEach((ta, i) => { if (saved[i]) ta.value = saved[i]; });
+  } catch (e) {}
+  document.querySelectorAll('#panel-safety textarea').forEach(ta => {
+    ta.addEventListener('input', () => {
+      const vals = [...document.querySelectorAll('#panel-safety textarea')].map(t => t.value);
+      localStorage.setItem(key, JSON.stringify(vals));
+    });
+  });
+}
+
+/* ---------- 转诊板块：需要转诊断时联系谁 ---------- */
+function renderReferral() {
+  $('panel-referral').innerHTML = `
+    <div class="card">
+      <div class="script-h">🚩 什么情况需要转诊（上转指征）</div>
+      <div class="script-line dont-line" style="padding-left:30px;display:block">
+        ${REFERRAL.indications.map(x => '• ' + x).join('<br>')}
+      </div>
+    </div>
+    <div class="card">
+      <div class="script-h">🏥 转去哪里 · 找谁</div>
+      ${REFERRAL.destinations.map(d => `
+        <div class="step-item" style="padding-bottom:14px">
+          <div class="step-n" style="background:var(--teal);font-size:16px">${d.icon}</div>
+          <div class="step-body"><h4>${d.t}</h4><p>${d.d}</p></div>
+        </div>`).join('')}
+    </div>
+    <div class="card">
+      <div class="script-h">📋 转诊流程</div>
+      ${REFERRAL.process.map((p, i) => `
+        <div class="step-item">
+          <div class="step-n" style="background:var(--teal-l)">${i + 1}</div>
+          <div class="step-body"><p style="color:var(--ink);font-size:13px">${p}</p></div>
+        </div>`).join('')}
+      <div class="referral-note"><span>⚠️</span><span>${REFERRAL.note}</span></div>
+    </div>
+    <div class="card">
+      <div class="script-h">📍 本地转诊机构（一键拨打）</div>
+      <button class="btn-primary" style="padding:12px;font-size:14px" onclick="showPage('local');detectLocation()">定位并查看本地精神卫生中心 ›</button>
+    </div>`;
+}
+
+/* ---------- 本地热线与定位 ---------- */
+function goLocal() {
+  showPage('local');
+  // 手动选择为主路径：若已记住上次省市，直接带出；否则等待用户手动选。
+  // 自动定位降为可选，不主动请求（浏览器要求用户手势触发，且本地文件下会被安全策略拒绝）。
+  let last = null;
+  try { last = localStorage.getItem('last_province'); } catch (e) {}
+  if (last && PROVINCES[last]) {
+    $('provinceSel').value = last;
+    renderLocal(last);
+    $('locStatus').innerHTML = '';
+  } else {
+    $('locStatus').innerHTML = '';
+  }
+}
+
+// 将定位返回的省份文本归一到 PROVINCES 的键
+function normalizeProvince(text) {
+  if (!text) return '';
+  let t = text.trim();
+  if (PROVINCES[t]) return t;
+  if (PROVINCE_ALIAS[t]) return PROVINCE_ALIAS[t];
+  // 去掉常见后缀再匹配
+  for (const key of Object.keys(PROVINCE_ALIAS)) {
+    if (t.indexOf(key) === 0) return PROVINCE_ALIAS[key];
+  }
+  // 部分反查直接给“XX市”，尝试匹配省份关键字
+  for (const p of Object.keys(PROVINCES)) {
+    if (t.indexOf(p) !== -1) return p;
+  }
+  return '';
+}
+
+function detectLocation() {
+  const box = $('locStatus');
+  box.innerHTML = '<span class="spin"></span><span>正在获取你的位置…</span>';
+  if (!navigator.geolocation) {
+    box.innerHTML = '⚠️ 当前环境不支持定位，请在下方手动选择省市。';
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const { latitude: lat, longitude: lon } = pos.coords;
+    box.innerHTML = '<span class="spin"></span><span>定位成功，正在匹配当地资源…</span>';
+    let prov = '';
+    // 免费无 key、CORS 开放、返回中文省市的逆地理编码接口，偶发限流故重试
+    const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=zh`;
+    for (let attempt = 0; attempt < 3 && !prov; attempt++) {
+      try {
+        const ctl = new AbortController();
+        const timer = setTimeout(() => ctl.abort(), 9000);
+        const resp = await fetch(url, { signal: ctl.signal, cache: 'no-store' });
+        clearTimeout(timer);
+        if (!resp.ok) continue;
+        const d = await resp.json();
+        prov = normalizeProvince(d.principalSubdivision || d.city || '');
+      } catch (e) { /* 限流或超时，重试 */ }
+    }
+    if (prov) {
+      $('provinceSel').value = prov;
+      try { localStorage.setItem('last_province', prov); } catch (e) {}
+      box.innerHTML = `📍 已定位：<b>${prov}</b>　<span class="retry" onclick="detectLocation()">重新定位</span>`;
+      renderLocal(prov);
+    } else {
+      box.innerHTML = '⚠️ 定位到了位置，但未能匹配本地号码，请在下方手动选择省市。<span class="retry" onclick="detectLocation()">重试</span>';
+    }
+  }, (err) => {
+    let msg = '⚠️ 定位未成功';
+    if (err && err.code === 1) msg = '⚠️ 定位权限被拒绝';
+    else if (err && err.code === 2) msg = '⚠️ 暂时无法获取位置';
+    else if (err && err.code === 3) msg = '⚠️ 定位超时';
+    const localFile = /^file:|^content:/.test(location.protocol);
+    let hint;
+    if (localFile) {
+      hint = '检测到你正用<strong>本地文件方式</strong>打开。Edge 等浏览器会禁止本地文件获取定位，即使设置已允许也不会弹窗——这是浏览器的安全限制，非本工具故障。请改用<strong>在线网址版</strong>打开，或直接在下方手动选省市。';
+    } else if (err && err.code === 1) {
+      hint = '若是误点了「拒绝」，请点地址栏左侧的锁形图标→位置权限→改为「允许」，再点下方「重试」。';
+    } else {
+      hint = '请检查手机定位开关，或直接在下方手动选择省市。';
+    }
+    box.innerHTML = `${msg}。${hint}<br><span class="retry" onclick="detectLocation()">重试定位</span>`;
+  }, { enableHighAccuracy: false, timeout: 9000, maximumAge: 300000 });
+}
+
+function onProvinceChange(val) {
+  if (!val) { $('localContent').innerHTML = ''; return; }
+  try { localStorage.setItem('last_province', val); } catch (e) {}
+  renderLocal(val);
+}
+
+function renderLocal(prov) {
+  const data = PROVINCES[prov];
+  if (!data) return;
+  const hotlineCard = h => `
+    <div class="hotline ${h.type === 'psy' ? 'primary' : ''}">
+      <div class="hl-ico" style="background:${h.type === 'psy' ? 'var(--grad-hot-2)' : 'var(--soft-teal)'}">${h.icon || '💚'}</div>
+      <div class="hl-txt"><h4>${h.name}</h4><div class="num">${h.num}</div><p>${h.note}</p></div>
+      <button class="hl-call ${h.type === 'psy' ? 'red' : ''}" onclick="call('${h.num}')">拨打</button>
+    </div>`;
+  const centerCard = c => `
+    <div class="center-card">
+      <div class="ci">🏥</div>
+      <div class="ct"><h4>${c.name}</h4><p>${c.note}</p><div class="cnum">${c.num}</div></div>
+      <button class="hl-call" onclick="call('${c.num}')">拨打</button>
+    </div>`;
+  $('localContent').innerHTML = `
+    <div class="local-sec-h">📞 ${prov} · 本地心理热线</div>
+    ${data.hotlines.map(hotlineCard).join('')}
+    <div class="local-sec-h">🏥 ${prov} · 精神卫生中心 / 转诊机构</div>
+    ${data.centers.map(centerCard).join('')}
+    <div class="local-sec-h">🌐 全国通用专线</div>
+    ${NATIONAL_LINES.map(hotlineCard).join('')}
+    <div class="referral-note"><span>ℹ️</span><span>以上号码整理自公开资料，可能随时间调整，请以当地官方公布为准。遇即时人身危险请拨打 110 / 120。</span></div>`;
+}
+
+/* ---------- 量表弹层 ---------- */
+let activeScale = null;
+let scaleAnswers = [];
+
+function openScale(id) {
+  activeScale = SCALES[id];
+  scaleAnswers = new Array(activeScale.items.length).fill(null);
+  $('scaleName').textContent = activeScale.name;
+  $('scaleSrc').textContent = activeScale.source;
+  const isFreq = activeScale.type === 'freq';
+  $('scaleBody').innerHTML = `<div class="scale-prog" id="scaleProg"></div>` + activeScale.items.map((item, i) => `
+    <div class="q">
+      <div class="q-title"><span class="qn">${i + 1}.</span>${item}</div>
+      <div class="opts" data-qi="${i}">
+        ${(isFreq ? activeScale.options : ['是', '否']).map((o, oi) =>
+          `<div class="opt" data-v="${isFreq ? oi : (oi === 0 ? 1 : 0)}" onclick="pickOpt(${i},${isFreq ? oi : (oi === 0 ? 1 : 0)},this)">${o}</div>`
+        ).join('')}
+      </div>
+    </div>`).join('');
+  $('scaleFoot').innerHTML = `<button class="btn-primary pending" id="scoreBtn" onclick="scoreScale()">查看结果</button>`;
+  $('mask').classList.add('on');
+  updateScaleProgress();
+}
+
+// 作答进度提示：已完成 X / 共 N 题；完成时按钮转为可点样式
+function updateScaleProgress() {
+  const prog = $('scaleProg');
+  const btn = $('scoreBtn');
+  if (!prog || !btn) return;
+  const total = scaleAnswers.length;
+  const done = scaleAnswers.filter(v => v !== null).length;
+  if (done === total) {
+    prog.className = 'scale-prog done';
+    prog.textContent = `✓ 已完成全部 ${total} 题，可以出结果了`;
+    btn.classList.remove('pending');
+  } else {
+    prog.className = 'scale-prog';
+    prog.innerHTML = `已完成 ${done} / ${total} 题 · 还有 <b>${total - done}</b> 题未作答`;
+    btn.classList.add('pending');
+  }
+}
+
+function pickOpt(qi, val, el) {
+  scaleAnswers[qi] = val;
+  el.parentElement.querySelectorAll('.opt').forEach(o => o.classList.remove('sel'));
+  el.classList.add('sel');
+  updateScaleProgress();
+}
+
+function scoreScale() {
+  // 防呆：未答完不静默失败，明确提示并滚动高亮第一道未答题
+  if (activeScale && scaleAnswers.some(v => v === null)) {
+    const first = scaleAnswers.findIndex(v => v === null);
+    const qs = $('scaleBody').querySelectorAll('.q');
+    // 进度条用 .scale-prog，不计入 .q，故题目索引与第一道未答题索引一一对应
+    const target = qs[first];
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.classList.remove('flash');
+      void target.offsetWidth; // 触发重排以重启动画
+      target.classList.add('flash');
+      setTimeout(() => target.classList.remove('flash'), 1600);
+    }
+    toast('还有题目未作答，已为你跳到第一道未答题');
+    return;
+  }
+  const r = activeScale.score(scaleAnswers);
+  const lv = RISK_LEVELS[r.level];
+  // 若量表判定更严重，联动提升方案风险等级（无方案上下文时跳过联动）
+  if (state.result && r.risk < state.result.level) {
+    state.result.level = r.risk;
+    renderResult();
+  }
+  $('scaleBody').innerHTML = `
+    <div class="result-box" style="background:${lv.bgv};border:1.5px solid ${lv.fg}55">
+      <div class="rl" style="color:${lv.fg}">${lv.icon} 评估结果 · ${activeScale.name}</div>
+      <div class="rs" style="color:${lv.fg}">${r.score}</div>
+      <div style="font-size:15px;font-weight:800;color:${lv.fg}">${r.label}</div>
+      <div class="ra">${r.advice}</div>
+    </div>
+    <div class="tip-card" style="margin-top:14px"><span class="i">⚠️</span><span>${activeScale.desc} 结果为筛查参考，<b>须结合专业临床访谈综合判断</b>。</span></div>`;
+  $('scaleFoot').innerHTML = `
+    <button class="btn-ghost" style="width:100%;border:1.5px solid var(--line);background:var(--card);border-radius:13px;padding:12px;font-weight:700;cursor:pointer" onclick="openScale('${activeScale.id}')">重新作答</button>`;
+}
+
+function closeScale() { $('mask').classList.remove('on'); }
+
+/* ---------- 从首页查看全部热线 ---------- */
+function showAllHotlines() {
+  $('scaleName').textContent = '常用援助热线';
+  $('scaleSrc').textContent = '遇到危机时，先打电话——总有人愿意听你说';
+  $('scaleBody').innerHTML = HOTLINES.map(h => hotlineCard(h)).join('') +
+    `<div class="tip-card" style="margin-top:6px"><span class="i">📞</span><span>拨打按钮将直接唤起手机拨号键盘。心理困扰可优先拨打 <b>12356</b>；人身安全受威胁请拨打 <b>110</b>。</span></div>`;
+  $('scaleFoot').innerHTML = `<button class="btn-primary" onclick="closeScale()">知道了</button>`;
+  $('mask').classList.add('on');
+}
+
+/* ---------- 主题（深色模式）----------
+ * 三态：auto 跟随系统 / light 强制浅色 / dark 强制深色，存 localStorage。
+ * auto 时移除 data-theme，让 CSS 的 prefers-color-scheme 媒体查询生效。 */
+const THEME_STEPS = [
+  { key: 'auto',  name: '跟随', ico: '🌗' },
+  { key: 'light', name: '浅色', ico: '☀️' },
+  { key: 'dark',  name: '深色', ico: '🌙' }
+];
+function getThemeKey() {
+  let k = 'auto';
+  try { k = localStorage.getItem('theme') || 'auto'; } catch (e) {}
+  return THEME_STEPS.some(t => t.key === k) ? k : 'auto';
+}
+function applyTheme() {
+  const k = getThemeKey();
+  const root = document.documentElement;
+  if (k === 'auto') root.removeAttribute('data-theme');
+  else root.setAttribute('data-theme', k);
+  const t = THEME_STEPS.find(x => x.key === k);
+  const btn = $('themeBtn');
+  if (btn) { btn.querySelector('.th-ico').textContent = t.ico; btn.querySelector('.th-label').textContent = t.name; }
+}
+function cycleTheme() {
+  const next = (THEME_STEPS.findIndex(t => t.key === getThemeKey()) + 1) % THEME_STEPS.length;
+  try { localStorage.setItem('theme', THEME_STEPS[next].key); } catch (e) {}
+  applyTheme();
+  toast('主题：' + THEME_STEPS[next].name + (THEME_STEPS[next].key === 'auto' ? '（跟随系统）' : ''));
+}
+
+/* ---------- 字号 / 视口缩放 ----------
+ * 两个彼此独立的缩放，务必分清：
+ *   ① vp.zoom —— 视口失效补偿倍数。本地文件在微信/QQ(X5)等内核里会被按 ~980px 布局
+ *      再整体缩到屏幕(约 0.4 倍)。此倍数把被缩小的画布补回真实设备宽度。
+ *   ② userScale —— 用户字号偏好(标准/大/特大)，只作用于正文，与浮层无关。
+ * 正文 #app 的缩放 = ①×②。悬浮按钮/弹层/toast 在 #app 外，不跟随②(否则字号调大时
+ * 按钮被放大而重叠)，但必须跟随①——否则 X5 整体缩小画布时，正文被①补回、按钮却没补，
+ * 就变成小圆点。给这些 fixed 元素自身设 zoom=①，其尺寸与 right/bottom 偏移会同比例
+ * 放大(已实测)，既抵消画布缩小、定位又自洽。弹层 .mask 同理由 zoom=① 继承给面板与
+ * 文字，但面板 max-height 的 vh 会被 zoom 二次放大，X5 场景需换成具体 px。
+ * ①=1 时 zoom=1，完全无副作用。 */
+const FONT_STEPS = [
+  { key: 'std',  name: '标准', scale: 1 },
+  { key: 'big',  name: '大',   scale: 1.18 },
+  { key: 'max',  name: '特大', scale: 1.36 }
+];
+function getFontIdx() {
+  let k = 'std';
+  try { k = localStorage.getItem('fontScale') || 'std'; } catch (e) {}
+  const i = FONT_STEPS.findIndex(f => f.key === k);
+  return i < 0 ? 0 : i;
+}
+function applyZoom() {
+  try {
+    const vp = window.__vp || { zoom: 1, devW: 0, layoutVW: 0 };
+    const userScale = FONT_STEPS[getFontIdx()].scale;
+    const total = vp.zoom * userScale;
+    // 只缩放正文容器 #app，不碰 body。浮层（悬浮按钮/弹层/toast）在 #app 外，
+    // 因此其尺寸、fixed 定位、vh 高度全部保持真实视口值，无需任何反向补偿。
+    const app = $('app');
+    const layoutVW = vp.layoutVW || window.innerWidth || 0;
+    if (app) {
+      if (total > 1.001 && layoutVW) {
+        app.style.width = (layoutVW / total).toFixed(2) + 'px';
+        app.style.zoom = total.toFixed(3);
+      } else {
+        app.style.width = '';
+        app.style.zoom = '';
+      }
+    }
+    // 浮层只跟随「视口失效补偿倍数 vp.zoom」，不跟随用户字号。
+    // 给 fixed 元素自身设 zoom：尺寸与 right/bottom 偏移会同比例放大（已实测），
+    // 抵消掉 X5 内核对画布的整体缩小，又不会因字号放大而变大/重叠。vp.zoom=1 时无副作用。
+    const v = (vp.zoom > 1.001) ? vp.zoom.toFixed(3) : '1';
+    [['fontBtn', 18, 14], ['themeBtn', 78, 14]].forEach(function(a){
+      const e = document.getElementById(a[0]);
+      if (e) e.style.zoom = (vp.zoom > 1.001) ? v : '';
+    });
+    const ts = $('toast');
+    if (ts) ts.style.zoom = (vp.zoom > 1.001) ? v : '';
+    // 弹层（遮罩 + 面板）：X5 把整页画布缩小时，弹层也在 #app 外、同样被缩小，
+    // 表现为「更多热线 / 量表」弹出的面板又窄字又小。给 .mask 设 zoom=vp.zoom，
+    // zoom 会继承给面板及内部文字/按钮，一起被补回；fixed 遮罩 inset:0 设 zoom 后
+    // 仍自动铺满视口（实测），无需锁宽高。但面板 max-height:92vh 中的 vh 会被 zoom
+    // 二次放大（实测 92vh→约4624px），需在 X5 场景换成具体像素抵消，避免弹层被撑出屏幕。
+    const mask = $('mask');
+    if (mask) {
+      mask.style.zoom = (vp.zoom > 1.001) ? v : '';
+      const sheet = mask.querySelector('.sheet');
+      if (sheet) {
+        if (vp.zoom > 1.001) {
+          const vh = window.innerHeight || 0;
+          sheet.style.maxHeight = vh ? (vh * 0.92 / vp.zoom).toFixed(0) + 'px' : '';
+        } else {
+          sheet.style.maxHeight = '';
+        }
+      }
+    }
+    // 更新按钮显示
+    const fb = $('fontBtn');
+    if (fb) fb.querySelector('.ft-label').textContent = FONT_STEPS[getFontIdx()].name;
+  } catch (e) {}
+}
+function cycleFont() {
+  const next = (getFontIdx() + 1) % FONT_STEPS.length;
+  try { localStorage.setItem('fontScale', FONT_STEPS[next].key); } catch (e) {}
+  applyZoom();
+  toast('字号已切换：' + FONT_STEPS[next].name);
+}
+
+/* ---------- Toast ---------- */
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg; t.classList.add('on');
+  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('on'), 2000);
+}
+
+/* ---------- 启动 ---------- */
+init();
+// 视口检测在 head 完成，最终值可能在 load 之后（源头修复要等两帧）才确定并触发 vpchange。
+// 两处都重新应用一次，确保拿到最终倍数；多数情况下 zoom=1，applyZoom 走原生分支不产生副作用。
+window.addEventListener('load', function(){ applyZoom(); });
+window.addEventListener('vpchange', function(){ applyZoom(); });
+
+</script>
+</body>
+</html>

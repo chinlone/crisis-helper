@@ -68,7 +68,12 @@ version = m.group(1) if m else "latest"
 if PUBLIC:
     out = BASE / "安心护航-心理危机应急助手-公开版.html"
     out.write_text(html, encoding="utf-8")
+    # 同步到 docs/index.html 作为 GitHub Pages 在线入口
+    docs = BASE / "docs"
+    docs.mkdir(exist_ok=True)
+    (docs / "index.html").write_text(html, encoding="utf-8")
     print(f"[公开版·无联系方式] 已生成：{out}")
+    print(f"[在线入口] 已同步：{docs / 'index.html'}")
 else:
     tagged = BASE / f"安心护航-心理危机应急助手-{version}.html"
     tagged.write_text(html, encoding="utf-8")
